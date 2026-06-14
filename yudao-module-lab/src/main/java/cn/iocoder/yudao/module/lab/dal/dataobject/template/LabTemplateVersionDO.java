@@ -1,0 +1,26 @@
+package cn.iocoder.yudao.module.lab.dal.dataobject.template;
+
+import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
+import com.baomidou.mybatisplus.annotation.KeySequence;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+@TableName("lab_template_version")
+@KeySequence("lab_template_version_seq")
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class LabTemplateVersionDO extends TenantBaseDO {
+
+    @TableId
+    private Long id;
+    private Long domainPackId;
+    private String templateCode;
+    private String templateName;
+    private String templateVersion;
+    private String templateType;
+    private String previewSchema;
+    private String status;
+
+}
