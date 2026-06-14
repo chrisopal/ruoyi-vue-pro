@@ -50,6 +50,11 @@ public class LimsWorkflowSaveReqVO {
     private String methodName;
     private Long standardClauseId;
     private Long assignedUserId;
+    private Long equipmentId;
+    private String equipmentCode;
+    private String equipmentName;
+    private String equipmentSnapshot;
+    private String equipmentEvidenceSnapshot;
     private String plannedStartTime;
     private String plannedEndTime;
 

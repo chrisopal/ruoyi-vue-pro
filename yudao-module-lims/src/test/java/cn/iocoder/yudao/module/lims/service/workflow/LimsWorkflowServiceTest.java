@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSav
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.resultvalue.LimsTestResultValueMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsExecutionPlanMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsReportMapper;
@@ -14,6 +15,9 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.DomainPackGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
+import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -50,6 +54,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsExecutionPlanMapper executionPlanMapper;
     @Mock
     private DomainPackGateway domainPackGateway;
+    @Mock
+    private EquipmentGateway equipmentGateway;
     @Mock
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Spy
@@ -101,6 +107,26 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && plan.getPlanJson().contains("qcCheckPlans")
                         && plan.getPlanJson().contains("evidenceRequirementPlans")
                         && plan.getPlanJson().contains("reportDraftPlan")));
+    }
+
+    @Test
+    void generateTasks_shouldBindAvailableEquipmentAndCalibrationEvidence() {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(sampleMapper.selectListByRequestId(1L)).thenReturn(List.of(sample()));
+        when(equipmentGateway.getAvailableEquipment("FOOD", "pH")).thenReturn(List.of(new AvailableEquipment(
+                88L, "PH-METER-001", "酸度计", "instrument", "FOOD", "pH", "2099-12-31",
+                false, null, null, "manual")));
+        when(equipmentGateway.getCurrentCalibrationEvidence(88L)).thenReturn(List.of(new CalibrationEvidence(
+                99L, 88L, "calibration", "CERT-001", "省计量院", "2026-01-01",
+                "2099-12-31", "合格", "https://example.test/cert.pdf", true)));
+
+        workflowService.generateTasks(1L);
+
+        verify(taskMapper).insert(argThat((LimsTestTaskDO task) -> Long.valueOf(88L).equals(task.getEquipmentId())
+                && "PH-METER-001".equals(task.getEquipmentCode())
+                && task.getEquipmentSnapshot().contains("酸度计")
+                && task.getEquipmentEvidenceSnapshot().contains("CERT-001")));
     }
 
     private static LimsWorkflowSaveReqVO createReq() {

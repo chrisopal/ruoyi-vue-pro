@@ -19,5 +19,6 @@ public interface ErrorCodeConstants {
     ErrorCode DOMAIN_PACK_REQUIRED = new ErrorCode(1_051_001_006, "检测场景方案包不能为空");
     ErrorCode DOMAIN_PACK_NOT_PUBLISHED = new ErrorCode(1_051_001_008, "检测场景方案包未发布，不能创建检测需求");
     ErrorCode WORKFLOW_SNAPSHOT_FROZEN = new ErrorCode(1_051_001_009, "检测需求已冻结方向包快照，不能更换检测方案包");
+    ErrorCode TEST_TASK_EQUIPMENT_UNAVAILABLE = new ErrorCode(1_051_001_010, "检测任务设备不可用或校准已过期");
 
 }

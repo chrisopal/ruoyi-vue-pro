@@ -21,6 +21,9 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.DomainPackGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
+import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -68,6 +71,8 @@ public class LimsWorkflowService {
     private LimsExecutionPlanMapper executionPlanMapper;
     @Resource
     private DomainPackGateway domainPackGateway;
+    @Resource
+    private EquipmentGateway equipmentGateway;
     @Resource
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Resource
@@ -172,13 +177,23 @@ public class LimsWorkflowService {
         if (!StringUtils.hasText(task.getStatus())) {
             task.setStatus("assigned");
         }
+        bindEquipmentToTask(task, request, createReqVO.getEquipmentId());
         taskMapper.insert(task);
         return task.getId();
     }
 
     public void updateTask(LimsWorkflowSaveReqVO updateReqVO) {
-        validateTaskExists(updateReqVO.getId());
-        taskMapper.updateById(BeanUtils.toBean(updateReqVO, LimsTestTaskDO.class));
+        LimsTestTaskDO existing = validateTaskExists(updateReqVO.getId());
+        LimsTestTaskDO task = BeanUtils.toBean(updateReqVO, LimsTestTaskDO.class);
+        if (updateReqVO.getEquipmentId() != null) {
+            Long requestId = task.getRequestId() == null ? existing.getRequestId() : task.getRequestId();
+            LimsTestRequestDO request = validateRequestExists(requestId);
+            if (!StringUtils.hasText(task.getTestItem())) {
+                task.setTestItem(existing.getTestItem());
+            }
+            bindEquipmentToTask(task, request, updateReqVO.getEquipmentId());
+        }
+        taskMapper.updateById(task);
     }
 
     public void deleteTask(Long id) {
@@ -292,6 +307,7 @@ public class LimsWorkflowService {
                 task.setMethodCode(item.methodCode());
                 task.setMethodName(item.methodName());
                 task.setStatus("assigned");
+                bindEquipmentToTask(task, request, null);
                 taskMapper.insert(task);
                 created++;
             }
@@ -371,6 +387,35 @@ public class LimsWorkflowService {
         result.setTestItem(task.getTestItem());
         if (!StringUtils.hasText(result.getResultNo())) {
             result.setResultNo(task.getTaskNo() + "-R");
+        }
+    }
+
+    private void bindEquipmentToTask(LimsTestTaskDO task, LimsTestRequestDO request, Long requestedEquipmentId) {
+        List<AvailableEquipment> availableEquipment = equipmentGateway.getAvailableEquipment(request.getDomainCode(), task.getTestItem());
+        if (availableEquipment.isEmpty()) {
+            if (requestedEquipmentId == null) {
+                return;
+            }
+            throw exception(TEST_TASK_EQUIPMENT_UNAVAILABLE);
+        }
+        AvailableEquipment selected = requestedEquipmentId == null ? availableEquipment.get(0)
+                : availableEquipment.stream()
+                .filter(equipment -> requestedEquipmentId.equals(equipment.equipmentId()))
+                .findFirst()
+                .orElseThrow(() -> exception(TEST_TASK_EQUIPMENT_UNAVAILABLE));
+        task.setEquipmentId(selected.equipmentId());
+        task.setEquipmentCode(selected.equipmentCode());
+        task.setEquipmentName(selected.equipmentName());
+        task.setEquipmentSnapshot(writeJson(selected));
+        List<CalibrationEvidence> evidence = equipmentGateway.getCurrentCalibrationEvidence(selected.equipmentId());
+        task.setEquipmentEvidenceSnapshot(writeJson(evidence));
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Unable to serialize LIMS snapshot", ex);
         }
     }
 
