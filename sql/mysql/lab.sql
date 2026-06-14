@@ -1596,6 +1596,30 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   KEY `idx_lims_task_assignee_window` (`assigned_user_id`, `planned_start_time`, `planned_end_time`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务';
 
+CREATE TABLE IF NOT EXISTS `lims_task_schedule` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `task_id` bigint NOT NULL COMMENT '检测任务编号',
+  `request_id` bigint NOT NULL COMMENT '检测需求编号',
+  `sample_id` bigint NOT NULL COMMENT '样品编号',
+  `equipment_id` bigint NULL DEFAULT NULL COMMENT '设备编号',
+  `assigned_user_id` bigint NULL DEFAULT NULL COMMENT '执行人',
+  `planned_start_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '计划开始时间',
+  `planned_end_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '计划结束时间',
+  `schedule_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'scheduled' COMMENT '排程状态',
+  `conflict_reason` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '冲突原因',
+  `locked` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否锁定',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lims_task_schedule_task` (`task_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_schedule_equipment` (`equipment_id`, `planned_start_time`, `planned_end_time`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_schedule_user` (`assigned_user_id`, `planned_start_time`, `planned_end_time`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务排程';
+
 CREATE TABLE IF NOT EXISTS `lims_task_event_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `task_id` bigint NOT NULL COMMENT '检测任务编号',

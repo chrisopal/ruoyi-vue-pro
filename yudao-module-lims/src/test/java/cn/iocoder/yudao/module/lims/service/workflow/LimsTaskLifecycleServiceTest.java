@@ -49,6 +49,30 @@ class LimsTaskLifecycleServiceTest extends BaseMockitoUnitTest {
         assertThrows(Exception.class, () -> service.start(10L));
     }
 
+    @Test
+    void markReady_shouldMoveScheduledTaskToReadyAndWriteEvent() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.SCHEDULED));
+
+        service.markReady(10L);
+
+        verify(taskMapper).updateById(argThat((LimsTestTaskDO updated) ->
+                LimsTaskStatus.READY.equals(updated.getTaskStatus())
+                        && LimsTaskStatus.READY.equals(updated.getStatus())));
+        verify(eventLogMapper).insert(argThat((LimsTaskEventLogDO event) ->
+                Long.valueOf(10L).equals(event.getTaskId())
+                        && LimsTaskEventType.READINESS_PASSED.equals(event.getEventType())
+                        && LimsTaskStatus.SCHEDULED.equals(event.getFromStatus())
+                        && LimsTaskStatus.READY.equals(event.getToStatus())));
+    }
+
+    @Test
+    void transition_shouldRejectGeneratedTaskToReviewing() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.GENERATED));
+
+        assertThrows(Exception.class, () -> service.transition(
+                10L, LimsTaskStatus.REVIEWING, LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null));
+    }
+
     private static LimsTestTaskDO task(Long id, String status) {
         LimsTestTaskDO task = new LimsTestTaskDO();
         task.setId(id);

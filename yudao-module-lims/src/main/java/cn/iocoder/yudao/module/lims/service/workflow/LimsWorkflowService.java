@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.lims.dal.dataobject.resultvalue.LimsTestResultVal
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskScheduleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
@@ -37,6 +38,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
@@ -91,6 +93,8 @@ public class LimsWorkflowService {
     private LimsTaskLifecycleService taskLifecycleService;
     @Resource
     private LimsReportEligibilityService reportEligibilityService;
+    @Resource
+    private LimsTaskScheduleService taskScheduleService;
     @Resource
     private ObjectMapper objectMapper;
 
@@ -229,6 +233,7 @@ public class LimsWorkflowService {
             }
             bindEquipmentToTask(task, request, updateReqVO.getEquipmentId());
         }
+        clearTaskLifecycleOwnedFields(task);
         taskMapper.updateById(task);
     }
 
@@ -247,13 +252,31 @@ public class LimsWorkflowService {
 
     public void updateTaskStatus(Long id, String status) {
         validateTaskExists(id);
-        taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>().eq("id", id).set("status", status));
+        taskLifecycleService.transition(id, status, resolveTaskEventType(status), "手动更新任务状态", null);
     }
 
     public void startTask(Long id) {
         taskLifecycleService.start(id);
     }
 
+    public Long scheduleTask(LimsWorkflowSaveReqVO reqVO) {
+        return taskScheduleService.schedule(reqVO);
+    }
+
+    public Long scheduleTaskDefault(Long id) {
+        return taskScheduleService.scheduleDefault(id);
+    }
+
+    public void markTaskReady(Long id) {
+        taskScheduleService.markReady(id);
+    }
+
+    public PageResult<LimsWorkflowRespVO> getTaskSchedulePage(LimsWorkflowPageReqVO pageReqVO) {
+        PageResult<LimsTaskScheduleDO> page = taskScheduleService.getSchedulePage(pageReqVO);
+        return BeanUtils.toBean(page, LimsWorkflowRespVO.class);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public Long createResult(LimsWorkflowSaveReqVO createReqVO) {
         LimsTestTaskDO task = validateTaskExists(createReqVO.getTaskId());
         LimsTestResultDO result = BeanUtils.toBean(createReqVO, LimsTestResultDO.class);
@@ -263,10 +286,12 @@ public class LimsWorkflowService {
         }
         resultMapper.insert(result);
         saveResultValues(result, task);
+        taskLifecycleService.transition(task.getId(), LimsTaskStatus.DATA_SUBMITTED,
+                LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
+        taskLifecycleService.transition(task.getId(), LimsTaskStatus.REVIEWING,
+                LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
         taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>()
                 .eq("id", task.getId())
-                .set("status", LimsTaskStatus.REVIEWING)
-                .set("task_status", LimsTaskStatus.REVIEWING)
                 .set("review_status", LimsTaskReviewStatus.PENDING)
                 .set("report_eligible", false));
         refreshRequestAfterResults(task.getRequestId());
@@ -275,7 +300,9 @@ public class LimsWorkflowService {
 
     public void updateResult(LimsWorkflowSaveReqVO updateReqVO) {
         validateResultExists(updateReqVO.getId());
-        resultMapper.updateById(BeanUtils.toBean(updateReqVO, LimsTestResultDO.class));
+        LimsTestResultDO result = BeanUtils.toBean(updateReqVO, LimsTestResultDO.class);
+        clearResultLifecycleOwnedFields(result);
+        resultMapper.updateById(result);
     }
 
     public void deleteResult(Long id) {
@@ -291,6 +318,7 @@ public class LimsWorkflowService {
         return BeanUtils.toBean(resultMapper.selectPage(pageReqVO), LimsWorkflowRespVO.class);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void approveResult(Long id) {
         LimsTestResultDO result = validateResultExists(id);
         resultMapper.update(null, new UpdateWrapper<LimsTestResultDO>()
@@ -357,7 +385,7 @@ public class LimsWorkflowService {
                 task.setScheduleStatus(LimsTaskScheduleStatus.UNSCHEDULED);
                 task.setDurationMinutes(item.durationMinutes());
                 task.setMethodSnapshot(writeJson(item));
-                task.setQcStatus("none");
+                task.setQcStatus(LimsTaskReviewStatus.NONE);
                 task.setReviewStatus(LimsTaskReviewStatus.NONE);
                 task.setReportEligible(false);
                 bindEquipmentToTask(task, request, null);
@@ -478,17 +506,68 @@ public class LimsWorkflowService {
         if (task == null) {
             return;
         }
-        String fromStatus = StringUtils.hasText(task.getTaskStatus()) ? task.getTaskStatus() : task.getStatus();
+        taskLifecycleService.transition(task.getId(), LimsTaskStatus.APPROVED,
+                LimsTaskEventType.APPROVED, "检测结果审核通过", null);
         LimsTestTaskDO updateTask = new LimsTestTaskDO();
         updateTask.setId(task.getId());
-        updateTask.setStatus(LimsTaskStatus.APPROVED);
-        updateTask.setTaskStatus(LimsTaskStatus.APPROVED);
         updateTask.setReviewStatus(LimsTaskReviewStatus.APPROVED);
         updateTask.setReportEligible(true);
         updateTask.setBlockReason(null);
         taskMapper.updateById(updateTask);
-        taskLifecycleService.writeEvent(task.getId(), task.getTaskNo(), LimsTaskEventType.APPROVED,
-                fromStatus, LimsTaskStatus.APPROVED, "检测结果审核通过", null);
+    }
+
+    private void clearTaskLifecycleOwnedFields(LimsTestTaskDO task) {
+        task.setStatus(null);
+        task.setTaskStatus(null);
+        task.setScheduleStatus(null);
+        task.setActualStartTime(null);
+        task.setActualEndTime(null);
+        task.setReadinessSnapshot(null);
+        task.setReviewStatus(null);
+        task.setQcStatus(null);
+        task.setReportEligible(null);
+        task.setBlockReason(null);
+        task.setMethodSnapshot(null);
+    }
+
+    private void clearResultLifecycleOwnedFields(LimsTestResultDO result) {
+        result.setStatus(null);
+        result.setReviewerId(null);
+        result.setReviewedTime(null);
+    }
+
+    private String resolveTaskEventType(String status) {
+        if (LimsTaskStatus.ASSIGNED.equals(status)) {
+            return LimsTaskEventType.ASSIGNED;
+        }
+        if (LimsTaskStatus.READY.equals(status)) {
+            return LimsTaskEventType.READINESS_PASSED;
+        }
+        if (LimsTaskStatus.TESTING.equals(status)) {
+            return LimsTaskEventType.STARTED;
+        }
+        if (LimsTaskStatus.DATA_SUBMITTED.equals(status)) {
+            return LimsTaskEventType.RECORD_SUBMITTED;
+        }
+        if (LimsTaskStatus.REVIEWING.equals(status)) {
+            return LimsTaskEventType.REVIEW_SUBMITTED;
+        }
+        if (LimsTaskStatus.APPROVED.equals(status)) {
+            return LimsTaskEventType.APPROVED;
+        }
+        if (LimsTaskStatus.COMPLETED.equals(status)) {
+            return LimsTaskEventType.COMPLETED;
+        }
+        if (LimsTaskStatus.REPORTED.equals(status)) {
+            return LimsTaskEventType.REPORTED;
+        }
+        if (LimsTaskStatus.HOLD.equals(status)) {
+            return LimsTaskEventType.HOLD;
+        }
+        if (LimsTaskStatus.CANCELLED.equals(status) || LimsTaskStatus.REWORK.equals(status)) {
+            return LimsTaskEventType.REJECTED;
+        }
+        return LimsTaskEventType.RESUMED;
     }
 
     private void bindEquipmentToTask(LimsTestTaskDO task, LimsTestRequestDO request, Long requestedEquipmentId) {

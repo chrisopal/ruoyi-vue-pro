@@ -31,7 +31,11 @@ const fields = [
   { prop: 'testItem', label: '检测项目' },
   { prop: 'methodCode', label: '方法编码' },
   { prop: 'methodName', label: '方法名称' },
+  { prop: 'equipmentId', label: '设备ID' },
+  { prop: 'equipmentCode', label: '设备编码' },
   { prop: 'assignedUserId', label: '执行人' },
+  { prop: 'plannedStartTime', label: '计划开始' },
+  { prop: 'plannedEndTime', label: '计划结束' },
   { prop: 'durationMinutes', label: '预计分钟' },
   { prop: 'actualStartTime', label: '实际开始' },
   { prop: 'actualEndTime', label: '实际结束' },
@@ -41,6 +45,8 @@ const fields = [
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
 ]
 const rowActions = [
+  { label: '快速排程', url: '/lims/task/schedule-default', method: 'post' },
+  { label: '确认就绪', url: '/lims/task/ready', method: 'put' },
   { label: '开始检测', url: '/lims/task/start', method: 'put' }
 ] as const
 </script>

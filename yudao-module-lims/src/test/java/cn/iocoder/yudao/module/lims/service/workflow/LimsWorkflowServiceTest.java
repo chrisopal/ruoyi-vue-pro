@@ -242,11 +242,88 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
 
         verify(taskMapper).updateById(argThat((LimsTestTaskDO updated) ->
                 Long.valueOf(20L).equals(updated.getId())
-                        && LimsTaskStatus.APPROVED.equals(updated.getTaskStatus())
                         && LimsTaskReviewStatus.APPROVED.equals(updated.getReviewStatus())
                         && Boolean.TRUE.equals(updated.getReportEligible())));
-        verify(taskLifecycleService).writeEvent(20L, "REQ-2026-001-T01", LimsTaskEventType.APPROVED,
-                LimsTaskStatus.REVIEWING, LimsTaskStatus.APPROVED, "检测结果审核通过", null);
+        verify(taskLifecycleService).transition(20L, LimsTaskStatus.APPROVED,
+                LimsTaskEventType.APPROVED, "检测结果审核通过", null);
+    }
+
+    @Test
+    void createResult_shouldSubmitTaskThroughLifecycleAndMarkReviewPending() {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        task.setTaskStatus(LimsTaskStatus.TESTING);
+        task.setStatus(LimsTaskStatus.TESTING);
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(task));
+
+        workflowService.createResult(resultReq());
+
+        verify(resultMapper).insert(argThat((LimsTestResultDO result) ->
+                Long.valueOf(1L).equals(result.getRequestId())
+                        && Long.valueOf(20L).equals(result.getTaskId())
+                        && "REQ-2026-001-T01".equals(result.getTaskNo())
+                        && "recorded".equals(result.getStatus())));
+        verify(taskLifecycleService).transition(20L, LimsTaskStatus.DATA_SUBMITTED,
+                LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
+        verify(taskLifecycleService).transition(20L, LimsTaskStatus.REVIEWING,
+                LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
+    }
+
+    @Test
+    void updateTask_shouldIgnoreLifecycleOwnedFields() {
+        LimsTestTaskDO existing = taskWithEquipmentEvidence();
+        when(taskMapper.selectById(20L)).thenReturn(existing);
+        LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
+        reqVO.setId(20L);
+        reqVO.setTaskName("pH 修订");
+        reqVO.setStatus(LimsTaskStatus.APPROVED);
+        reqVO.setTaskStatus(LimsTaskStatus.APPROVED);
+        reqVO.setScheduleStatus(LimsTaskScheduleStatus.SCHEDULED);
+        reqVO.setActualStartTime("2026-06-14 10:00:00");
+        reqVO.setActualEndTime("2026-06-14 11:00:00");
+        reqVO.setReadinessSnapshot("{\"ready\":true}");
+        reqVO.setQcStatus(LimsTaskReviewStatus.APPROVED);
+        reqVO.setReviewStatus(LimsTaskReviewStatus.APPROVED);
+        reqVO.setReportEligible(true);
+        reqVO.setBlockReason("manual");
+        reqVO.setMethodSnapshot("{\"method\":\"override\"}");
+
+        workflowService.updateTask(reqVO);
+
+        verify(taskMapper).updateById(argThat((LimsTestTaskDO task) ->
+                Long.valueOf(20L).equals(task.getId())
+                        && "pH 修订".equals(task.getTaskName())
+                        && task.getStatus() == null
+                        && task.getTaskStatus() == null
+                        && task.getScheduleStatus() == null
+                        && task.getActualStartTime() == null
+                        && task.getActualEndTime() == null
+                        && task.getReadinessSnapshot() == null
+                        && task.getQcStatus() == null
+                        && task.getReviewStatus() == null
+                        && task.getReportEligible() == null
+                        && task.getBlockReason() == null
+                        && task.getMethodSnapshot() == null));
+    }
+
+    @Test
+    void updateResult_shouldIgnoreLifecycleOwnedFields() {
+        when(resultMapper.selectById(100L)).thenReturn(result());
+        LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
+        reqVO.setId(100L);
+        reqVO.setResultValue("7.2");
+        reqVO.setStatus("approved");
+        reqVO.setReviewerId(9L);
+        reqVO.setReviewedTime("2026-06-14 12:00:00");
+
+        workflowService.updateResult(reqVO);
+
+        verify(resultMapper).updateById(argThat((LimsTestResultDO result) ->
+                Long.valueOf(100L).equals(result.getId())
+                        && "7.2".equals(result.getResultValue())
+                        && result.getStatus() == null
+                        && result.getReviewerId() == null
+                        && result.getReviewedTime() == null));
     }
 
     @Test
@@ -323,6 +400,16 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         result.setResultUnit("");
         result.setResultConclusion("合格");
         return result;
+    }
+
+    private static LimsWorkflowSaveReqVO resultReq() {
+        LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
+        reqVO.setTaskId(20L);
+        reqVO.setResultValue("7.1");
+        reqVO.setResultUnit("");
+        reqVO.setResultConclusion("合格");
+        reqVO.setRawData("{\"resultValues\":[]}");
+        return reqVO;
     }
 
     private static LimsTestTaskDO taskWithEquipmentEvidence() {

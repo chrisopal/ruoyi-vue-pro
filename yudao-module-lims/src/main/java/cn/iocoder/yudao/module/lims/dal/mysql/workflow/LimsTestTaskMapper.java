@@ -16,8 +16,12 @@ public interface LimsTestTaskMapper extends BaseMapperX<LimsTestTaskDO> {
         return selectPage(reqVO, new LambdaQueryWrapperX<LimsTestTaskDO>()
                 .eqIfPresent(LimsTestTaskDO::getRequestId, reqVO.getRequestId())
                 .eqIfPresent(LimsTestTaskDO::getSampleId, reqVO.getSampleId())
+                .eqIfPresent(LimsTestTaskDO::getAssignedUserId, reqVO.getAssignedUserId())
+                .eqIfPresent(LimsTestTaskDO::getEquipmentId, reqVO.getEquipmentId())
                 .likeIfPresent(LimsTestTaskDO::getTaskName, reqVO.getKeyword())
                 .eqIfPresent(LimsTestTaskDO::getStatus, reqVO.getStatus())
+                .eqIfPresent(LimsTestTaskDO::getTaskStatus, reqVO.getTaskStatus())
+                .eqIfPresent(LimsTestTaskDO::getScheduleStatus, reqVO.getScheduleStatus())
                 .orderByDesc(LimsTestTaskDO::getId));
     }
 

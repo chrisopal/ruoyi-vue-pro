@@ -180,6 +180,35 @@ public class LimsWorkflowController {
         return success(true);
     }
 
+    @PostMapping("/lims/task/schedule")
+    @Operation(summary = "检测任务排程")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Long> scheduleTask(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
+        return success(workflowService.scheduleTask(reqVO));
+    }
+
+    @PostMapping("/lims/task/schedule-default")
+    @Operation(summary = "检测任务快速排程")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Long> scheduleTaskDefault(@RequestParam("id") Long id) {
+        return success(workflowService.scheduleTaskDefault(id));
+    }
+
+    @PutMapping("/lims/task/ready")
+    @Operation(summary = "确认检测任务就绪")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Boolean> markTaskReady(@RequestParam("id") Long id) {
+        workflowService.markTaskReady(id);
+        return success(true);
+    }
+
+    @GetMapping("/lims/task/schedule/page")
+    @Operation(summary = "获得检测任务排程分页")
+    @PreAuthorize("@ss.hasPermission('lims:task:query')")
+    public CommonResult<PageResult<LimsWorkflowRespVO>> getTaskSchedulePage(@Valid LimsWorkflowPageReqVO pageReqVO) {
+        return success(workflowService.getTaskSchedulePage(pageReqVO));
+    }
+
     @GetMapping("/lims/result/page")
     @Operation(summary = "获得检测结果分页")
     @PreAuthorize("@ss.hasPermission('lims:result:query')")

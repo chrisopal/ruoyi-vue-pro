@@ -25,7 +25,7 @@ public class LimsTaskLifecycleService {
 
     private static final Map<String, Set<String>> ALLOWED = Map.ofEntries(
             Map.entry(LimsTaskStatus.GENERATED, Set.of(LimsTaskStatus.SCHEDULED, LimsTaskStatus.ASSIGNED, LimsTaskStatus.CANCELLED, LimsTaskStatus.HOLD)),
-            Map.entry(LimsTaskStatus.SCHEDULED, Set.of(LimsTaskStatus.ASSIGNED, LimsTaskStatus.CANCELLED, LimsTaskStatus.HOLD)),
+            Map.entry(LimsTaskStatus.SCHEDULED, Set.of(LimsTaskStatus.ASSIGNED, LimsTaskStatus.READY, LimsTaskStatus.CANCELLED, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.ASSIGNED, Set.of(LimsTaskStatus.READY, LimsTaskStatus.CANCELLED, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.READY, Set.of(LimsTaskStatus.TESTING, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.TESTING, Set.of(LimsTaskStatus.DATA_SUBMITTED, LimsTaskStatus.HOLD)),
@@ -54,6 +54,11 @@ public class LimsTaskLifecycleService {
         task.setActualStartTime(now());
         taskMapper.updateById(task);
         writeEvent(task.getId(), task.getTaskNo(), LimsTaskEventType.STARTED, fromStatus, LimsTaskStatus.TESTING, null, null);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void markReady(Long taskId) {
+        transition(taskId, LimsTaskStatus.READY, LimsTaskEventType.READINESS_PASSED, "任务排程与资源确认完成", null);
     }
 
     @Transactional(rollbackFor = Exception.class)

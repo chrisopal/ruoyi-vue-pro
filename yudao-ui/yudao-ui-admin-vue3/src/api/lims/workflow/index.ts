@@ -32,6 +32,9 @@ export interface LimsWorkflowVO {
   methodName?: string
   standardClauseId?: number
   assignedUserId?: number
+  equipmentId?: number
+  equipmentCode?: string
+  equipmentName?: string
   plannedStartTime?: string
   plannedEndTime?: string
   taskStatus?: string
