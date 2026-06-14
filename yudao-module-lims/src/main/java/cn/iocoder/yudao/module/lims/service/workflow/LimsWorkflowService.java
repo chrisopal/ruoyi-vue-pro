@@ -538,6 +538,27 @@ public class LimsWorkflowService {
             node.put("resultUnit", result.getResultUnit());
             node.put("conclusion", result.getResultConclusion());
         }
+        ArrayNode taskArray = root.putArray("tasks");
+        ArrayNode equipmentEvidenceArray = root.putArray("equipmentEvidenceSnapshots");
+        for (LimsTestTaskDO task : taskMapper.selectListByRequestId(request.getId())) {
+            ObjectNode node = taskArray.addObject();
+            node.put("taskNo", task.getTaskNo());
+            node.put("taskName", task.getTaskName());
+            node.put("testItem", task.getTestItem());
+            node.put("equipmentId", task.getEquipmentId());
+            node.put("equipmentCode", task.getEquipmentCode());
+            node.put("equipmentName", task.getEquipmentName());
+            node.set("equipmentSnapshot", readObject(task.getEquipmentSnapshot()));
+            JsonNode evidenceSnapshot = readObject(task.getEquipmentEvidenceSnapshot());
+            node.set("equipmentEvidenceSnapshot", evidenceSnapshot);
+            if (task.getEquipmentId() != null && !evidenceSnapshot.isMissingNode() && !evidenceSnapshot.isNull()) {
+                ObjectNode evidenceNode = equipmentEvidenceArray.addObject();
+                evidenceNode.put("taskNo", task.getTaskNo());
+                evidenceNode.put("equipmentId", task.getEquipmentId());
+                evidenceNode.put("equipmentCode", task.getEquipmentCode());
+                evidenceNode.set("evidence", evidenceSnapshot);
+            }
+        }
         ArrayNode resultValueArray = root.putArray("resultValues");
         for (LimsTestResultValueDO value : resultValueMapper.selectListByRequestId(request.getId())) {
             ObjectNode node = resultValueArray.addObject();

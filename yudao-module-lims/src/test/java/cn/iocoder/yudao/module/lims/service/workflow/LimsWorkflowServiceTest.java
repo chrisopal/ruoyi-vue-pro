@@ -4,8 +4,10 @@ import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.resultvalue.LimsTestResultValueMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsExecutionPlanMapper;
@@ -129,6 +131,24 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                 && task.getEquipmentEvidenceSnapshot().contains("CERT-001")));
     }
 
+    @Test
+    void generateReport_shouldIncludeEquipmentEvidenceSnapshots() {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(reportMapper.selectByRequestId(1L)).thenReturn(null);
+        when(resultMapper.selectListByRequestId(1L)).thenReturn(List.of(result()));
+        when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(taskWithEquipmentEvidence()));
+        when(resultValueMapper.selectListByRequestId(1L)).thenReturn(List.of());
+
+        workflowService.generateReport(1L);
+
+        verify(reportMapper).insert(argThat((LimsReportDO report) ->
+                report.getDataSnapshot().contains("equipmentEvidenceSnapshots")
+                        && report.getDataSnapshot().contains("PH-METER-001")
+                        && report.getDataSnapshot().contains("CERT-001")
+                        && report.getDataSnapshotHash() != null));
+    }
+
     private static LimsWorkflowSaveReqVO createReq() {
         LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
         reqVO.setRequestNo("REQ-2026-001");
@@ -169,6 +189,37 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         sample.setSampleNo("REQ-2026-001-S01");
         sample.setSampleName("食品样品");
         return sample;
+    }
+
+    private static LimsTestResultDO result() {
+        LimsTestResultDO result = new LimsTestResultDO();
+        result.setId(100L);
+        result.setRequestId(1L);
+        result.setRequestNo("REQ-2026-001");
+        result.setSampleId(10L);
+        result.setSampleNo("REQ-2026-001-S01");
+        result.setTaskId(20L);
+        result.setTaskNo("REQ-2026-001-T01");
+        result.setTestItem("pH");
+        result.setResultValue("7.1");
+        result.setResultUnit("");
+        result.setResultConclusion("合格");
+        return result;
+    }
+
+    private static LimsTestTaskDO taskWithEquipmentEvidence() {
+        LimsTestTaskDO task = new LimsTestTaskDO();
+        task.setId(20L);
+        task.setRequestId(1L);
+        task.setTaskNo("REQ-2026-001-T01");
+        task.setTaskName("pH");
+        task.setTestItem("pH");
+        task.setEquipmentId(88L);
+        task.setEquipmentCode("PH-METER-001");
+        task.setEquipmentName("酸度计");
+        task.setEquipmentSnapshot("{\"equipmentCode\":\"PH-METER-001\",\"equipmentName\":\"酸度计\"}");
+        task.setEquipmentEvidenceSnapshot("[{\"certificateNo\":\"CERT-001\",\"validTo\":\"2099-12-31\"}]");
+        return task;
     }
 
     private static String snapshotWithAllSections() {
