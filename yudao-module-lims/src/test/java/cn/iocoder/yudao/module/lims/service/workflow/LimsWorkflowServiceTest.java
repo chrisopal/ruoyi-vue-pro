@@ -68,6 +68,10 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private ReportEvidenceGateway reportEvidenceGateway;
     @Mock
     private WorkflowSnapshotFactory workflowSnapshotFactory;
+    @Mock
+    private LimsTaskLifecycleService taskLifecycleService;
+    @Mock
+    private LimsReportEligibilityService reportEligibilityService;
     @Spy
     private ReportDraftPlanFactory reportDraftPlanFactory = new ReportDraftPlanFactory(new ObjectMapper());
     @Spy
@@ -154,7 +158,28 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && task.getMethodSnapshot() != null
                         && (task.getMethodSnapshot().contains("pH") || task.getMethodSnapshot().contains("HJ-1147"))
                         && task.getDurationMinutes() != null
-                        && task.getDurationMinutes() >= 1));
+                        && Long.valueOf(75L).equals(task.getDurationMinutes())));
+    }
+
+    @Test
+    void createTask_shouldInitializeManualTaskLifecycleDefaults() {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(sampleMapper.selectById(10L)).thenReturn(sample());
+        when(equipmentGateway.getAvailableEquipment("FOOD", "pH")).thenReturn(List.of());
+
+        workflowService.createTask(manualTaskReq());
+
+        verify(taskMapper).insert(argThat((LimsTestTaskDO task) ->
+                LimsTaskStatus.ASSIGNED.equals(task.getStatus())
+                        && LimsTaskStatus.ASSIGNED.equals(task.getTaskStatus())
+                        && LimsTaskScheduleStatus.UNSCHEDULED.equals(task.getScheduleStatus())
+                        && LimsTaskReviewStatus.NONE.equals(task.getQcStatus())
+                        && LimsTaskReviewStatus.NONE.equals(task.getReviewStatus())
+                        && Boolean.FALSE.equals(task.getReportEligible())
+                        && Long.valueOf(60L).equals(task.getDurationMinutes())
+                        && task.getMethodSnapshot() != null
+                        && task.getMethodSnapshot().contains("pH")));
     }
 
     @Test
@@ -188,6 +213,7 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
 
         workflowService.generateReport(1L);
 
+        verify(reportEligibilityService).assertRequestReportable(1L);
         verify(reportMapper).insert(argThat((LimsReportDO report) ->
                 report.getDataSnapshot().contains("equipmentEvidenceSnapshots")
                         && report.getDataSnapshot().contains("PH-METER-001")
@@ -200,6 +226,27 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && report.getReportOutput().contains("\"format\":\"PDF\"")
                         && report.getReportOutput().contains("\"format\":\"EXCEL\"")
                         && report.getReportOutput().contains("contentHash")));
+    }
+
+    @Test
+    void approveResult_shouldMarkTaskReportEligibleAndWriteEvent() {
+        LimsTestResultDO result = result();
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        task.setTaskStatus(LimsTaskStatus.REVIEWING);
+        task.setStatus(LimsTaskStatus.REVIEWING);
+        when(resultMapper.selectById(100L)).thenReturn(result);
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(task));
+
+        workflowService.approveResult(100L);
+
+        verify(taskMapper).updateById(argThat((LimsTestTaskDO updated) ->
+                Long.valueOf(20L).equals(updated.getId())
+                        && LimsTaskStatus.APPROVED.equals(updated.getTaskStatus())
+                        && LimsTaskReviewStatus.APPROVED.equals(updated.getReviewStatus())
+                        && Boolean.TRUE.equals(updated.getReportEligible())));
+        verify(taskLifecycleService).writeEvent(20L, "REQ-2026-001-T01", LimsTaskEventType.APPROVED,
+                LimsTaskStatus.REVIEWING, LimsTaskStatus.APPROVED, "检测结果审核通过", null);
     }
 
     @Test
@@ -312,6 +359,11 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                   "domainPackId": 1,
                   "packCode": "FOOD_ROUTINE",
                   "packVersion": "1.0",
+                  "workflow": {
+                    "testItems": [
+                      {"itemCode": "PH", "itemName": "pH", "methodCode": "GB6920", "methodName": "玻璃电极法", "estimatedDurationMinutes": 75}
+                    ]
+                  },
                   "template": {
                     "templates": ["REPORT_BASIC_V1"],
                     "outputFormats": ["WORD", "PDF", "EXCEL"],
@@ -339,6 +391,18 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                   ]
                 }
                 """;
+    }
+
+    private static LimsWorkflowSaveReqVO manualTaskReq() {
+        LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
+        reqVO.setRequestId(1L);
+        reqVO.setSampleId(10L);
+        reqVO.setTaskNo("REQ-2026-001-T99");
+        reqVO.setTaskName("pH");
+        reqVO.setTestItem("pH");
+        reqVO.setMethodCode("GB6920");
+        reqVO.setMethodName("玻璃电极法");
+        return reqVO;
     }
 
 }

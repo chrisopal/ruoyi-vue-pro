@@ -88,6 +88,10 @@ public class LimsWorkflowService {
     @Resource
     private ReportOutputGenerator reportOutputGenerator;
     @Resource
+    private LimsTaskLifecycleService taskLifecycleService;
+    @Resource
+    private LimsReportEligibilityService reportEligibilityService;
+    @Resource
     private ObjectMapper objectMapper;
 
     public Long createRequest(LimsWorkflowSaveReqVO createReqVO) {
@@ -185,7 +189,29 @@ public class LimsWorkflowService {
         task.setRequestNo(request.getRequestNo());
         task.setSampleNo(sample.getSampleNo());
         if (!StringUtils.hasText(task.getStatus())) {
-            task.setStatus("assigned");
+            task.setStatus(LimsTaskStatus.ASSIGNED);
+        }
+        if (!StringUtils.hasText(task.getTaskStatus())) {
+            task.setTaskStatus(task.getStatus());
+        }
+        if (!StringUtils.hasText(task.getScheduleStatus())) {
+            task.setScheduleStatus(LimsTaskScheduleStatus.UNSCHEDULED);
+        }
+        if (task.getDurationMinutes() == null || task.getDurationMinutes() < 1) {
+            task.setDurationMinutes(60L);
+        }
+        if (!StringUtils.hasText(task.getQcStatus())) {
+            task.setQcStatus(LimsTaskReviewStatus.NONE);
+        }
+        if (!StringUtils.hasText(task.getReviewStatus())) {
+            task.setReviewStatus(LimsTaskReviewStatus.NONE);
+        }
+        if (task.getReportEligible() == null) {
+            task.setReportEligible(false);
+        }
+        if (!StringUtils.hasText(task.getMethodSnapshot())) {
+            task.setMethodSnapshot(writeJson(new TestItemConfig(
+                    task.getTestItem(), task.getMethodCode(), task.getMethodName(), task.getDurationMinutes())));
         }
         bindEquipmentToTask(task, request, createReqVO.getEquipmentId());
         taskMapper.insert(task);
@@ -224,6 +250,10 @@ public class LimsWorkflowService {
         taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>().eq("id", id).set("status", status));
     }
 
+    public void startTask(Long id) {
+        taskLifecycleService.start(id);
+    }
+
     public Long createResult(LimsWorkflowSaveReqVO createReqVO) {
         LimsTestTaskDO task = validateTaskExists(createReqVO.getTaskId());
         LimsTestResultDO result = BeanUtils.toBean(createReqVO, LimsTestResultDO.class);
@@ -233,7 +263,12 @@ public class LimsWorkflowService {
         }
         resultMapper.insert(result);
         saveResultValues(result, task);
-        taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>().eq("id", task.getId()).set("status", "completed"));
+        taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>()
+                .eq("id", task.getId())
+                .set("status", LimsTaskStatus.REVIEWING)
+                .set("task_status", LimsTaskStatus.REVIEWING)
+                .set("review_status", LimsTaskReviewStatus.PENDING)
+                .set("report_eligible", false));
         refreshRequestAfterResults(task.getRequestId());
         return result.getId();
     }
@@ -262,6 +297,7 @@ public class LimsWorkflowService {
                 .eq("id", id)
                 .set("status", "approved")
                 .set("reviewed_time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+        markTaskReportEligible(result);
         refreshRequestAfterResults(result.getRequestId());
     }
 
@@ -351,6 +387,7 @@ public class LimsWorkflowService {
 
     public Long generateReport(Long requestId) {
         LimsTestRequestDO request = validateRequestExists(requestId);
+        reportEligibilityService.assertRequestReportable(requestId);
         LimsReportDO existingReport = reportMapper.selectByRequestId(requestId);
         if (existingReport != null) {
             return existingReport.getId();
@@ -436,6 +473,24 @@ public class LimsWorkflowService {
         }
     }
 
+    private void markTaskReportEligible(LimsTestResultDO result) {
+        LimsTestTaskDO task = taskMapper.selectById(result.getTaskId());
+        if (task == null) {
+            return;
+        }
+        String fromStatus = StringUtils.hasText(task.getTaskStatus()) ? task.getTaskStatus() : task.getStatus();
+        LimsTestTaskDO updateTask = new LimsTestTaskDO();
+        updateTask.setId(task.getId());
+        updateTask.setStatus(LimsTaskStatus.APPROVED);
+        updateTask.setTaskStatus(LimsTaskStatus.APPROVED);
+        updateTask.setReviewStatus(LimsTaskReviewStatus.APPROVED);
+        updateTask.setReportEligible(true);
+        updateTask.setBlockReason(null);
+        taskMapper.updateById(updateTask);
+        taskLifecycleService.writeEvent(task.getId(), task.getTaskNo(), LimsTaskEventType.APPROVED,
+                fromStatus, LimsTaskStatus.APPROVED, "检测结果审核通过", null);
+    }
+
     private void bindEquipmentToTask(LimsTestTaskDO task, LimsTestRequestDO request, Long requestedEquipmentId) {
         List<AvailableEquipment> availableEquipment = equipmentGateway.getAvailableEquipment(request.getDomainCode(), task.getTestItem());
         if (availableEquipment.isEmpty()) {
@@ -503,7 +558,8 @@ public class LimsWorkflowService {
 
     private void refreshRequestAfterResults(Long requestId) {
         List<LimsTestTaskDO> tasks = taskMapper.selectListByRequestId(requestId);
-        if (!tasks.isEmpty() && tasks.stream().allMatch(task -> "completed".equals(task.getStatus()))) {
+        if (!tasks.isEmpty() && tasks.stream().allMatch(task -> Boolean.TRUE.equals(task.getReportEligible())
+                || LimsTaskStatus.REPORT_ALLOWED.contains(StringUtils.hasText(task.getTaskStatus()) ? task.getTaskStatus() : task.getStatus()))) {
             requestMapper.update(null, new UpdateWrapper<LimsTestRequestDO>().eq("id", requestId).set("status", "result_recorded"));
         }
     }
@@ -549,12 +605,13 @@ public class LimsWorkflowService {
             configuredItems = snapshot.path("workflow").path("testItems");
         }
         List<TestItemConfig> items = new ArrayList<>();
+        JsonNode workflowItems = snapshot.path("workflow").path("testItems");
         if (configuredItems.isArray()) {
             configuredItems.forEach(item -> items.add(new TestItemConfig(
                     item.path("itemName").asText(item.path("name").asText("常规检测")),
                     item.path("methodCode").asText("METHOD"),
                     item.path("methodName").asText("配置方法"),
-                    resolveDurationMinutes(item))));
+                    resolveDurationMinutes(item, workflowItems))));
         }
         if (!items.isEmpty()) {
             return items;
@@ -571,8 +628,23 @@ public class LimsWorkflowService {
                 new TestItemConfig("水分", "GB5009.3", "食品中水分测定", 90L));
     }
 
-    private Long resolveDurationMinutes(JsonNode item) {
-        long durationMinutes = item.path("estimatedDurationMinutes").asLong(60L);
+    private Long resolveDurationMinutes(JsonNode item, JsonNode workflowItems) {
+        JsonNode durationSource = item;
+        if (!item.hasNonNull("estimatedDurationMinutes") && workflowItems.isArray()) {
+            String itemCode = item.path("itemCode").asText("");
+            String itemName = item.path("itemName").asText(item.path("name").asText(""));
+            for (JsonNode workflowItem : workflowItems) {
+                boolean sameCode = StringUtils.hasText(itemCode) && itemCode.equals(workflowItem.path("itemCode").asText(""));
+                boolean sameName = StringUtils.hasText(itemName)
+                        && (itemName.equals(workflowItem.path("itemName").asText(""))
+                        || itemName.equals(workflowItem.path("name").asText("")));
+                if (sameCode || sameName) {
+                    durationSource = workflowItem;
+                    break;
+                }
+            }
+        }
+        long durationMinutes = durationSource.path("estimatedDurationMinutes").asLong(60L);
         return Math.max(durationMinutes, 1L);
     }
 

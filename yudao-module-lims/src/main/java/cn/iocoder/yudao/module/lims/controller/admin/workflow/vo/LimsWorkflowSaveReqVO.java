@@ -57,6 +57,17 @@ public class LimsWorkflowSaveReqVO {
     private String equipmentEvidenceSnapshot;
     private String plannedStartTime;
     private String plannedEndTime;
+    private String taskStatus;
+    private String scheduleStatus;
+    private String actualStartTime;
+    private String actualEndTime;
+    private Long durationMinutes;
+    private String methodSnapshot;
+    private String readinessSnapshot;
+    private String qcStatus;
+    private String reviewStatus;
+    private Boolean reportEligible;
+    private String blockReason;
 
     private Long taskId;
     private String resultNo;

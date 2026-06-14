@@ -176,7 +176,7 @@ public class LimsWorkflowController {
     @Operation(summary = "开始检测任务")
     @PreAuthorize("@ss.hasPermission('lims:task:update')")
     public CommonResult<Boolean> startTask(@RequestParam("id") Long id) {
-        workflowService.updateTaskStatus(id, "testing");
+        workflowService.startTask(id);
         return success(true);
     }
 

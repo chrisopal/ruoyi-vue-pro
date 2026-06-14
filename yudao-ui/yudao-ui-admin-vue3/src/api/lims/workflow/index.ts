@@ -34,6 +34,17 @@ export interface LimsWorkflowVO {
   assignedUserId?: number
   plannedStartTime?: string
   plannedEndTime?: string
+  taskStatus?: string
+  scheduleStatus?: string
+  actualStartTime?: string
+  actualEndTime?: string
+  durationMinutes?: number
+  methodSnapshot?: string
+  readinessSnapshot?: string
+  qcStatus?: string
+  reviewStatus?: string
+  reportEligible?: boolean
+  blockReason?: string
   taskId?: number
   resultNo?: string
   resultValue?: string

@@ -24,10 +24,20 @@ const fields = [
   { prop: 'requestNo', label: '需求编号' },
   { prop: 'sampleId', label: '样品ID' },
   { prop: 'sampleNo', label: '样品编号' },
+  { prop: 'taskStatus', label: '生命周期' },
+  { prop: 'scheduleStatus', label: '排程状态' },
+  { prop: 'reviewStatus', label: '复核状态' },
+  { prop: 'reportEligible', label: '可报告' },
   { prop: 'testItem', label: '检测项目' },
   { prop: 'methodCode', label: '方法编码' },
   { prop: 'methodName', label: '方法名称' },
   { prop: 'assignedUserId', label: '执行人' },
+  { prop: 'durationMinutes', label: '预计分钟' },
+  { prop: 'actualStartTime', label: '实际开始' },
+  { prop: 'actualEndTime', label: '实际结束' },
+  { prop: 'blockReason', label: '阻断原因' },
+  { prop: 'methodSnapshot', label: '方法快照', type: 'textarea', span: 24, table: false },
+  { prop: 'readinessSnapshot', label: '就绪快照', type: 'textarea', span: 24, table: false },
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
 ]
 const rowActions = [
