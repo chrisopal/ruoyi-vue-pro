@@ -8,6 +8,31 @@
 
 **Tech Stack:** Java 17, Spring Boot 3, MyBatis Plus, Jackson, JUnit 5/Mockito, MySQL DDL in `sql/mysql/lab.sql`, Vue 3 + Element Plus in `yudao-ui/yudao-ui-admin-vue3`.
 
+## Current Execution Status
+
+This plan has been executed as the first-batch correction baseline. The detailed unchecked task list below is preserved as the implementation recipe and review trace; use this section as the current status summary.
+
+Implemented:
+
+- DomainPack publication lifecycle and immutability: `draft -> published -> archived`.
+- Published DomainPack snapshot query through LAB services.
+- LIMS anti-corruption access through `DomainPackGateway`.
+- Explicit `WorkflowSnapshotFactory`, `ExecutionPlanFactory`, and `ReportDraftPlanFactory`.
+- Execution plan coverage for sample requirements, task plans, result fields, QC checks, evidence requirements, and report draft plan.
+- EquipmentAsset master data and available-equipment filtering.
+- Equipment calibration evidence object and CNAS/CMA equipment clause link.
+- LIMS task equipment binding with frozen equipment and calibration evidence snapshots.
+- Report data snapshot coverage for equipment and equipment evidence.
+- Admin UI coverage for direction pack lifecycle, pack designer remaining config, equipment ledger, LIMS task equipment fields, and report output fields.
+
+Known gaps kept out of this first batch:
+
+- Real IoT device protocol integration.
+- Full calibration/maintenance/data-import equipment sub-ledgers beyond the compatibility traceability entry.
+- Pixel-level report designer.
+- Full live-environment database migration package separate from `sql/mysql/lab.sql`.
+- Browser-verified end-to-end data flow with authenticated backend state.
+
 ---
 
 ## Scope Lock

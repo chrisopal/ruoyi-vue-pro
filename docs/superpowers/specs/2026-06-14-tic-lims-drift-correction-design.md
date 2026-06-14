@@ -1,8 +1,31 @@
 # TIC LIMS 当前实现漂移纠偏设计
 
 日期：2026-06-14
-状态：Draft for implementation planning
+状态：Current implementation correction baseline
 适用仓库：`ruoyi-vue-pro`
+
+## 0. 当前实现校准
+
+本文件最初用于把 TIC LIMS 的实现从“能跑的 MVP”纠偏到 DDD 分域、可版本化、可追溯的第一阶段架构。当前仓库已经完成第一批核心纠偏的主体实现，本节作为后续开发的读图入口，避免继续按旧 Draft 状态重复实现。
+
+已落地的纠偏点：
+
+- 方向包生命周期已经收敛为 `draft -> published -> archived`，已发布和已归档版本不可原地修改或删除。
+- LIMS 创建检测需求只通过 `DomainPackGateway` 读取 LAB 的已发布方向包快照，不再直接注入 LAB Mapper。
+- `WorkflowSnapshotFactory` 已独立生成冻结快照，快照包含样品要求、检测项目、结果字段、质控规则、证据要求和报告章节。
+- `ExecutionPlanFactory` 已从冻结快照生成执行计划，包含 `sampleRequirements`、`taskPlans`、`resultFieldPlans`、`qcCheckPlans`、`evidenceRequirementPlans` 和 `reportDraftPlan`。
+- `ReportDraftPlanFactory` 已把报告模板/章节规则、输出格式、数据绑定和证据要求纳入报告草稿计划。
+- `EquipmentAsset` 设备主档、可用设备查询、设备校准证据对象和设备条款链接已进入 LAB 侧。
+- LIMS 任务已经支持设备绑定，绑定时冻结设备摘要和当前校准证据快照。
+- 报告数据快照已经包含方向包版本、任务、结果字段、设备摘要和设备证据摘要。
+
+仍需保持清醒的边界：
+
+- 当前设备物联只预留 `iot_*` 字段和数据来源类型，真实协议接入后续复用芋道 IoT 模块，不在第一批扩张。
+- 当前设备校准沿用 `lab_equipment_traceability` 作为兼容入口，未新建完整的校准/维护/数据导入三套记录模型。
+- 当前报告输出是最小 DOCX/PDF/XLSX artifact 能力，不是像素级报告设计器。
+- 旧环境需要独立增量迁移；`sql/mysql/lab.sql` 仍以 bootstrap/create-if-not-exists 为主。
+- 后续实现应优先进入原始记录、质控、技术复核、任务工作台，而不是继续扩大方向包和设备第一批范围。
 
 ## 1. 目标
 
