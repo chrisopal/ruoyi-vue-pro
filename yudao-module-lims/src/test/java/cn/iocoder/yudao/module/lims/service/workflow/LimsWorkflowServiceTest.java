@@ -50,6 +50,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -142,6 +143,28 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && "hash-001".equals(request.getWorkflowSnapshotHash())
                         && request.getScenarioConfig().contains("FOOD_ROUTINE")
                         && "INTERNAL_DEPARTMENT".equals(request.getRequestSourceType())));
+    }
+
+    @Test
+    void updateRequest_shouldPreserveFrozenSnapshotWithoutRequeryingDomainPack() {
+        LimsTestRequestDO existing = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(existing);
+        when(requestMapper.selectByRequestNo("REQ-2026-001")).thenReturn(existing);
+
+        LimsWorkflowSaveReqVO reqVO = createReq();
+        reqVO.setId(1L);
+        reqVO.setRequestName("食品委托检测-更新");
+
+        workflowService.updateRequest(reqVO);
+
+        verify(domainPackGateway, never()).getPublishedPackSnapshot(any());
+        verify(requestMapper).updateById(argThat((LimsTestRequestDO request) ->
+                Long.valueOf(1L).equals(request.getId())
+                        && "FOOD_ROUTINE".equals(request.getDomainPackCode())
+                        && "1.0".equals(request.getDomainPackVersion())
+                        && snapshotWithAllSections().equals(request.getWorkflowSnapshot())
+                        && "snapshot-hash-001".equals(request.getWorkflowSnapshotHash())
+                        && snapshotWithAllSections().equals(request.getScenarioConfig())));
     }
 
     @Test
@@ -660,6 +683,9 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         request.setRequestNo("REQ-2026-001");
         request.setRequestName("食品委托检测");
         request.setDomainCode("FOOD");
+        request.setDomainPackId(1L);
+        request.setDomainPackCode("FOOD_ROUTINE");
+        request.setDomainPackVersion("1.0");
         request.setWorkflowSnapshot(snapshotJson);
         request.setWorkflowSnapshotHash("snapshot-hash-001");
         return request;

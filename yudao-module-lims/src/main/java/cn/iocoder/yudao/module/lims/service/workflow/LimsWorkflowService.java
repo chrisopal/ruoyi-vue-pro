@@ -145,10 +145,8 @@ public class LimsWorkflowService {
         if (existing.getDomainPackId() != null && !Objects.equals(existing.getDomainPackId(), requestedDomainPackId)) {
             throw exception(WORKFLOW_SNAPSHOT_FROZEN);
         }
-        LabDomainPackSnapshotDTO pack = validateDomainPack(requestedDomainPackId);
         LimsTestRequestDO request = BeanUtils.toBean(updateReqVO, LimsTestRequestDO.class);
-        request.setDomainPackCode(pack.getPackCode());
-        request.setDomainPackVersion(pack.getPackVersion());
+        LabDomainPackSnapshotDTO pack = needsWorkflowSnapshotBackfill(existing) ? validateDomainPack(requestedDomainPackId) : null;
         preserveWorkflowSnapshot(request, existing, pack);
         if (!StringUtils.hasText(request.getRequestSourceType())) {
             request.setRequestSourceType(resolveDefaultRequestSourceType(request.getRequestType()));
@@ -868,6 +866,10 @@ public class LimsWorkflowService {
         }
     }
 
+    private boolean needsWorkflowSnapshotBackfill(LimsTestRequestDO existing) {
+        return !StringUtils.hasText(existing.getWorkflowSnapshot()) && !StringUtils.hasText(existing.getScenarioConfig());
+    }
+
     private void preserveWorkflowSnapshot(LimsTestRequestDO request, LimsTestRequestDO existing, LabDomainPackSnapshotDTO pack) {
         String workflowSnapshot = existing.getWorkflowSnapshot();
         WorkflowSnapshot fallbackSnapshot = null;
@@ -880,8 +882,10 @@ public class LimsWorkflowService {
             }
         }
         request.setDomainPackId(existing.getDomainPackId());
-        request.setDomainPackCode(StringUtils.hasText(existing.getDomainPackCode()) ? existing.getDomainPackCode() : pack.getPackCode());
-        request.setDomainPackVersion(StringUtils.hasText(existing.getDomainPackVersion()) ? existing.getDomainPackVersion() : pack.getPackVersion());
+        request.setDomainPackCode(StringUtils.hasText(existing.getDomainPackCode()) ? existing.getDomainPackCode()
+                : pack == null ? null : pack.getPackCode());
+        request.setDomainPackVersion(StringUtils.hasText(existing.getDomainPackVersion()) ? existing.getDomainPackVersion()
+                : pack == null ? null : pack.getPackVersion());
         request.setWorkflowSnapshot(workflowSnapshot);
         request.setWorkflowSnapshotHash(StringUtils.hasText(existing.getWorkflowSnapshotHash()) ? existing.getWorkflowSnapshotHash()
                 : fallbackSnapshot != null ? fallbackSnapshot.getSnapshotHash() : sha256(workflowSnapshot));
