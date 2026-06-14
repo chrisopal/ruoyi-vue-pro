@@ -51,6 +51,9 @@ public class LimsWorkflowRespVO {
     private String methodName;
     private Long standardClauseId;
     private Long assignedUserId;
+    private String assignedUserName;
+    private String personnelSnapshot;
+    private String personnelEvidenceSnapshot;
     private Long equipmentId;
     private String equipmentCode;
     private String equipmentName;

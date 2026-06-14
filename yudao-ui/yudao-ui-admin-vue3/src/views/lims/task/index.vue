@@ -112,7 +112,7 @@
         </template>
       </el-table-column>
       <el-table-column align="center" label="执行人" min-width="90">
-        <template #default="{ row }">{{ formatActorLabel(undefined, row.assignedUserId) }}</template>
+        <template #default="{ row }">{{ formatActorLabel(row.assignedUserName, row.assignedUserId) }}</template>
       </el-table-column>
       <el-table-column align="center" label="设备" min-width="150" show-overflow-tooltip>
         <template #default="{ row }">

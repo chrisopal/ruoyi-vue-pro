@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordP
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordRespVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordSaveReqVO;
 import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
+import cn.iocoder.yudao.module.lab.service.quality.dto.LabPersonnelAuthorizationSummaryDTO;
 import cn.iocoder.yudao.module.lab.service.quality.LabQualityRecordService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -219,6 +220,27 @@ public class LabQualityRecordController {
     @PreAuthorize("@ss.hasPermission('lab:personnel-authorization:query')")
     public CommonResult<LabQualityRecordRespVO> getPersonnelAuthorization(@RequestParam("id") Long id) {
         return success(qualityRecordService.getPersonnelAuthorization(id));
+    }
+
+    @GetMapping("/lab/personnel-authorization/available")
+    @Operation(summary = "获得可执行检测任务的授权人员")
+    @PreAuthorize("@ss.hasPermission('lab:personnel-authorization:query')")
+    public CommonResult<List<LabPersonnelAuthorizationSummaryDTO>> getAvailablePersonnel(
+            @RequestParam(value = "testItem", required = false) String testItem,
+            @RequestParam(value = "methodId", required = false) Long methodId,
+            @RequestParam(value = "equipmentId", required = false) Long equipmentId) {
+        return success(qualityRecordService.getAvailablePersonnel(testItem, methodId, equipmentId));
+    }
+
+    @GetMapping("/lab/personnel-authorization/current")
+    @Operation(summary = "获得人员当前有效授权证据")
+    @PreAuthorize("@ss.hasPermission('lab:personnel-authorization:query')")
+    public CommonResult<List<LabPersonnelAuthorizationSummaryDTO>> getCurrentPersonnelAuthorizationEvidence(
+            @RequestParam("userId") Long userId,
+            @RequestParam(value = "testItem", required = false) String testItem,
+            @RequestParam(value = "methodId", required = false) Long methodId,
+            @RequestParam(value = "equipmentId", required = false) Long equipmentId) {
+        return success(qualityRecordService.getCurrentPersonnelAuthorizationEvidence(userId, testItem, methodId, equipmentId));
     }
 
     @PostMapping("/lab/personnel-authorization/create")

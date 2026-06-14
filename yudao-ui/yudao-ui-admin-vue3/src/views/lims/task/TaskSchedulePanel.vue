@@ -20,7 +20,30 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="执行人">
-              <el-input-number v-model="formData.assignedUserId" :min="1" class="!w-full" controls-position="right" />
+              <el-select
+                v-model="formData.assignedUserId"
+                class="!w-full"
+                clearable
+                filterable
+                :loading="personnelLoading"
+                placeholder="选择授权人员"
+                @visible-change="(open) => open && loadPersonnelOptions()"
+                @change="handlePersonnelChange"
+              >
+                <el-option
+                  v-for="item in personnelOptions"
+                  :key="item.userId"
+                  :label="personnelLabel(item)"
+                  :value="item.userId!"
+                >
+                  <div class="flex items-center justify-between gap-12px">
+                    <span>{{ item.userName || `用户#${item.userId}` }}</span>
+                    <span class="text-12px text-[var(--el-text-color-secondary)]">
+                      {{ item.authScope || item.competenceItem || '-' }} / {{ item.validTo || '未维护有效期' }}
+                    </span>
+                  </div>
+                </el-option>
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -57,6 +80,14 @@
               show-icon
               type="success"
               :title="selectedEquipmentSummary"
+            />
+          </el-col>
+          <el-col v-if="selectedPersonnel" :span="24">
+            <el-alert
+              :closable="false"
+              show-icon
+              type="success"
+              :title="selectedPersonnelSummary"
             />
           </el-col>
           <el-col :span="12">
@@ -135,7 +166,7 @@
             </template>
           </el-table-column>
           <el-table-column label="执行人" min-width="100">
-            <template #default="{ row }">{{ row.assignedUserId || '-' }}</template>
+            <template #default="{ row }">{{ row.assignedUserName || personnelName(row.assignedUserId) }}</template>
           </el-table-column>
           <el-table-column label="设备" min-width="100">
             <template #default="{ row }">{{ scheduleEquipmentLabel(row.equipmentId) }}</template>
@@ -163,6 +194,10 @@
 <script lang="ts" setup>
 import dayjs from 'dayjs'
 import { LabEquipmentAssetApi, type LabEquipmentAssetVO } from '@/api/lab/equipment-asset'
+import {
+  LabQualityApi,
+  type LabPersonnelAuthorizationSummaryVO
+} from '@/api/lab/quality'
 import {
   LimsWorkflowApi,
   type LimsTaskPageReqVO,
@@ -193,6 +228,8 @@ const taskDetail = ref<LimsTaskVO>()
 const scheduleList = ref<LimsTaskScheduleVO[]>([])
 const equipmentLoading = ref(false)
 const equipmentOptions = ref<LabEquipmentAssetVO[]>([])
+const personnelLoading = ref(false)
+const personnelOptions = ref<LabPersonnelAuthorizationSummaryVO[]>([])
 const formData = reactive<LimsTaskSchedulePayload>({
   taskId: undefined,
   assignedUserId: undefined,
@@ -208,6 +245,9 @@ const drawerTitle = computed(() =>
 const selectedEquipment = computed(() =>
   equipmentOptions.value.find((item) => item.id === formData.equipmentId)
 )
+const selectedPersonnel = computed(() =>
+  personnelOptions.value.find((item) => item.userId === formData.assignedUserId)
+)
 const selectedEquipmentSummary = computed(() => {
   const equipment = selectedEquipment.value
   if (!equipment) {
@@ -215,6 +255,13 @@ const selectedEquipmentSummary = computed(() => {
   }
   const iot = equipment.iotEnabled ? `IoT:${equipment.iotDeviceId || equipment.iotProductId || '已启用'}` : '未启用IoT'
   return `已选择 ${equipment.equipmentCode} / ${equipment.equipmentName}，校准有效期 ${equipment.calibrationValidUntil || '未维护'}，${iot}`
+})
+const selectedPersonnelSummary = computed(() => {
+  const personnel = selectedPersonnel.value
+  if (!personnel) {
+    return ''
+  }
+  return `已选择 ${personnel.userName || `用户#${personnel.userId}`}，授权范围 ${personnel.authScope || '-'}，有效期 ${personnel.validTo || '未维护'}`
 })
 
 watch(
@@ -235,6 +282,7 @@ const fillForm = (task: LimsTaskVO) => {
   formData.id = task.id
   formData.taskId = task.id
   formData.assignedUserId = task.assignedUserId
+  formData.assignedUserName = task.assignedUserName
   formData.equipmentId = task.equipmentId
   formData.equipmentCode = task.equipmentCode
   formData.equipmentName = task.equipmentName
@@ -250,6 +298,17 @@ const loadTask = async (taskId: number) => {
 
 const equipmentLabel = (equipment: LabEquipmentAssetVO) =>
   `${equipment.equipmentCode} / ${equipment.equipmentName}`
+
+const personnelLabel = (personnel: LabPersonnelAuthorizationSummaryVO) =>
+  `${personnel.userName || `用户#${personnel.userId}`} / ${personnel.authScope || personnel.competenceItem || '-'}`
+
+const personnelName = (userId?: number) => {
+  if (!userId) {
+    return '-'
+  }
+  const personnel = personnelOptions.value.find((item) => item.userId === userId)
+  return personnel?.userName || formData.assignedUserName || `#${userId}`
+}
 
 const scheduleEquipmentLabel = (equipmentId?: number) => {
   if (!equipmentId) {
@@ -287,10 +346,52 @@ const normalizeEquipmentOptions = (list: LabEquipmentAssetVO[]) => {
   ]
 }
 
-const handleEquipmentChange = (equipmentId?: number) => {
+const handleEquipmentChange = async (equipmentId?: number) => {
   const equipment = equipmentOptions.value.find((item) => item.id === equipmentId)
   formData.equipmentCode = equipment?.equipmentCode
   formData.equipmentName = equipment?.equipmentName
+  await loadPersonnelOptions(false)
+  if (formData.assignedUserId && !personnelOptions.value.some((item) => item.userId === formData.assignedUserId)) {
+    formData.assignedUserId = undefined
+    formData.assignedUserName = undefined
+  }
+}
+
+const loadPersonnelOptions = async (preserveCurrent = true) => {
+  personnelLoading.value = true
+  try {
+    const list = await LabQualityApi.getAvailablePersonnel({
+      testItem: taskDetail.value?.testItem,
+      equipmentId: formData.equipmentId
+    })
+    personnelOptions.value = normalizePersonnelOptions(list || [], preserveCurrent)
+  } finally {
+    personnelLoading.value = false
+  }
+}
+
+const normalizePersonnelOptions = (list: LabPersonnelAuthorizationSummaryVO[], preserveCurrent = true) => {
+  if (
+    !preserveCurrent ||
+    !taskDetail.value?.assignedUserId ||
+    list.some((item) => item.userId === taskDetail.value?.assignedUserId)
+  ) {
+    return list
+  }
+  return [
+    {
+      userId: taskDetail.value.assignedUserId,
+      userName: taskDetail.value.assignedUserName || `#${taskDetail.value.assignedUserId}`,
+      authScope: '当前执行人',
+      effective: true
+    },
+    ...list
+  ]
+}
+
+const handlePersonnelChange = (userId?: number) => {
+  const personnel = personnelOptions.value.find((item) => item.userId === userId)
+  formData.assignedUserName = personnel?.userName
 }
 
 const loadSchedules = async () => {
@@ -363,6 +464,7 @@ const open = async (task: LimsTaskVO, mode: 'schedule' | 'default' = 'schedule')
   try {
     await loadTask(task.id!)
     await loadEquipmentOptions()
+    await loadPersonnelOptions()
     await loadSchedules()
   } finally {
     loading.value = false

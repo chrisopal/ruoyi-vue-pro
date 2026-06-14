@@ -10,8 +10,11 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskScheduleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.PersonnelGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.model.AvailablePersonnel;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
 import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
+import cn.iocoder.yudao.module.lims.service.workflow.model.PersonnelAuthorizationEvidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
@@ -26,6 +29,7 @@ import java.util.List;
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_EQUIPMENT_UNAVAILABLE;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_NOT_EXISTS;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_PERSONNEL_UNAUTHORIZED;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_SCHEDULE_CONFLICT;
 
 @Service
@@ -43,6 +47,8 @@ public class LimsTaskScheduleService {
     private LimsTaskLifecycleService lifecycleService;
     @Resource
     private EquipmentGateway equipmentGateway;
+    @Resource
+    private PersonnelGateway personnelGateway;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -65,7 +71,7 @@ public class LimsTaskScheduleService {
 
         String fromStatus = currentStatus(task);
         bindEquipment(task, command.equipmentId());
-        task.setAssignedUserId(command.assignedUserId());
+        bindPersonnel(task, command.assignedUserId());
         task.setPlannedStartTime(command.plannedStartTime());
         task.setPlannedEndTime(command.plannedEndTime());
         task.setDurationMinutes(command.durationMinutes());
@@ -129,6 +135,29 @@ public class LimsTaskScheduleService {
         task.setEquipmentName(selected.equipmentName());
         task.setEquipmentSnapshot(writeJson(selected));
         task.setEquipmentEvidenceSnapshot(writeJson(evidence));
+    }
+
+    private void bindPersonnel(LimsTestTaskDO task, Long assignedUserId) {
+        if (assignedUserId == null) {
+            task.setAssignedUserId(null);
+            task.setAssignedUserName(null);
+            task.setPersonnelSnapshot(null);
+            task.setPersonnelEvidenceSnapshot(null);
+            return;
+        }
+        AvailablePersonnel selected = personnelGateway.getAvailablePersonnel(task.getTestItem(), null, task.getEquipmentId()).stream()
+                .filter(person -> assignedUserId.equals(person.userId()))
+                .findFirst()
+                .orElseThrow(() -> exception(TEST_TASK_PERSONNEL_UNAUTHORIZED));
+        List<PersonnelAuthorizationEvidence> evidence = personnelGateway.getCurrentAuthorizationEvidence(
+                selected.userId(), task.getTestItem(), null, task.getEquipmentId());
+        if (evidence.isEmpty()) {
+            throw exception(TEST_TASK_PERSONNEL_UNAUTHORIZED);
+        }
+        task.setAssignedUserId(selected.userId());
+        task.setAssignedUserName(selected.userName());
+        task.setPersonnelSnapshot(writeJson(selected));
+        task.setPersonnelEvidenceSnapshot(writeJson(evidence));
     }
 
     private String resolveRequestDomainCode(Long requestId) {

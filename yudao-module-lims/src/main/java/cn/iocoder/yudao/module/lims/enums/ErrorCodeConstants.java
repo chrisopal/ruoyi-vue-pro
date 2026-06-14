@@ -20,6 +20,7 @@ public interface ErrorCodeConstants {
     ErrorCode DOMAIN_PACK_NOT_PUBLISHED = new ErrorCode(1_051_001_008, "检测场景方案包未发布，不能创建检测需求");
     ErrorCode WORKFLOW_SNAPSHOT_FROZEN = new ErrorCode(1_051_001_009, "检测需求已冻结方向包快照，不能更换检测方案包");
     ErrorCode TEST_TASK_EQUIPMENT_UNAVAILABLE = new ErrorCode(1_051_001_010, "检测任务设备不可用或校准已过期");
+    ErrorCode TEST_TASK_PERSONNEL_UNAUTHORIZED = new ErrorCode(1_051_001_020, "检测任务执行人未获得当前项目授权或能力已过期");
     ErrorCode TEST_TASK_INVALID_STATUS_TRANSITION = new ErrorCode(1_051_001_011, "检测任务状态流转不允许");
     ErrorCode TEST_TASK_SCHEDULE_CONFLICT = new ErrorCode(1_051_001_012, "检测任务排程冲突");
     ErrorCode TEST_TASK_READINESS_FAILED = new ErrorCode(1_051_001_013, "检测任务就绪检查未通过");

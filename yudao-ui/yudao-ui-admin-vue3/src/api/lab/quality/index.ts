@@ -23,6 +23,28 @@ export interface LabEquipmentCalibrationEvidenceVO {
   effective?: boolean
 }
 
+export interface LabPersonnelAuthorizationSummaryVO {
+  authorizationId?: number
+  userId?: number
+  userName?: string
+  authType?: string
+  authScope?: string
+  methodId?: number
+  equipmentId?: number
+  authorizedTime?: string
+  validFrom?: string
+  validTo?: string
+  status?: string
+  fileUrl?: string
+  competenceId?: number
+  competenceType?: string
+  competenceItem?: string
+  certificateNo?: string
+  certificateFileUrl?: string
+  assessmentResult?: string
+  effective?: boolean
+}
+
 export const LabQualityApi = {
   page: async (baseUrl: string, params: any) => request.get({ url: baseUrl + '/page', params }),
   get: async (baseUrl: string, id: number) => request.get({ url: baseUrl + '/get', params: { id } }),
@@ -37,6 +59,23 @@ export const LabQualityApi = {
     return await request.get<LabEquipmentCalibrationEvidenceVO[]>({
       url: '/lab/equipment-traceability/current',
       params: { equipmentId }
+    })
+  },
+  getAvailablePersonnel: async (params: { testItem?: string; methodId?: number; equipmentId?: number }) => {
+    return await request.get<LabPersonnelAuthorizationSummaryVO[]>({
+      url: '/lab/personnel-authorization/available',
+      params
+    })
+  },
+  getCurrentPersonnelAuthorizationEvidence: async (params: {
+    userId: number
+    testItem?: string
+    methodId?: number
+    equipmentId?: number
+  }) => {
+    return await request.get<LabPersonnelAuthorizationSummaryVO[]>({
+      url: '/lab/personnel-authorization/current',
+      params
     })
   }
 }

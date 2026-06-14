@@ -789,11 +789,17 @@ public class LimsWorkflowService {
         }
         ArrayNode taskArray = root.putArray("tasks");
         ArrayNode equipmentEvidenceArray = root.putArray("equipmentEvidenceSnapshots");
+        ArrayNode personnelEvidenceArray = root.putArray("personnelEvidenceSnapshots");
         for (LimsTestTaskDO task : taskMapper.selectListByRequestId(request.getId())) {
             ObjectNode node = taskArray.addObject();
             node.put("taskNo", task.getTaskNo());
             node.put("taskName", task.getTaskName());
             node.put("testItem", task.getTestItem());
+            node.put("assignedUserId", task.getAssignedUserId());
+            node.put("assignedUserName", task.getAssignedUserName());
+            node.set("personnelSnapshot", readObject(task.getPersonnelSnapshot()));
+            JsonNode personnelEvidenceSnapshot = readObject(task.getPersonnelEvidenceSnapshot());
+            node.set("personnelEvidenceSnapshot", personnelEvidenceSnapshot);
             node.put("equipmentId", task.getEquipmentId());
             node.put("equipmentCode", task.getEquipmentCode());
             node.put("equipmentName", task.getEquipmentName());
@@ -806,6 +812,13 @@ public class LimsWorkflowService {
                 evidenceNode.put("equipmentId", task.getEquipmentId());
                 evidenceNode.put("equipmentCode", task.getEquipmentCode());
                 evidenceNode.set("evidence", evidenceSnapshot);
+            }
+            if (task.getAssignedUserId() != null && !personnelEvidenceSnapshot.isMissingNode() && !personnelEvidenceSnapshot.isNull()) {
+                ObjectNode personnelEvidenceNode = personnelEvidenceArray.addObject();
+                personnelEvidenceNode.put("taskNo", task.getTaskNo());
+                personnelEvidenceNode.put("assignedUserId", task.getAssignedUserId());
+                personnelEvidenceNode.put("assignedUserName", task.getAssignedUserName());
+                personnelEvidenceNode.set("evidence", personnelEvidenceSnapshot);
             }
         }
         ArrayNode resultValueArray = root.putArray("resultValues");

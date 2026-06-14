@@ -98,6 +98,17 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
                 Map.of(10L, List.of())));
     }
 
+    @Test
+    void assertQcAndEvidenceComplete_shouldRejectMissingPersonnelEvidence() {
+        LimsTestTaskDO task = task();
+        task.setPersonnelEvidenceSnapshot("[]");
+
+        assertThrows(Exception.class, () -> service.assertQcAndEvidenceComplete(request(snapshotWithPersonnelEvidence()), List.of(task),
+                Map.of(10L, List.of(rawRecord())),
+                Map.of(10L, List.of(qcRecord("approved", "{\"ruleCode\":\"BLANK\"}"))),
+                Map.of(10L, List.of(review(LimsTaskReviewStatus.APPROVED)))));
+    }
+
     private static LimsTestRequestDO request(String snapshot) {
         LimsTestRequestDO request = new LimsTestRequestDO();
         request.setId(1L);
@@ -110,6 +121,7 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
         task.setId(10L);
         task.setTestItem("pH");
         task.setEquipmentEvidenceSnapshot("[{\"certificateNo\":\"CERT-001\"}]");
+        task.setPersonnelEvidenceSnapshot("[{\"authorizationId\":200,\"userName\":\"张三\"}]");
         return task;
     }
 
@@ -164,6 +176,25 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
                   ],
                   "resultFields": [
                     {"itemCode": "PH", "fieldCode": "JUDGEMENT", "fieldType": "enum", "required": true, "enumOptions": "[\\"PASS\\",\\"FAIL\\"]"}
+                  ]
+                }
+                """;
+    }
+
+    private static String snapshotWithPersonnelEvidence() {
+        return """
+                {
+                  "testItems": [
+                    {"itemCode": "PH", "itemName": "pH"}
+                  ],
+                  "qcRules": [
+                    {"ruleCode": "BLANK", "required": true}
+                  ],
+                  "evidenceRequirements": [
+                    {"evidenceType": "RAW_DATA", "required": true},
+                    {"evidenceType": "EQUIPMENT_CERTIFICATE", "required": true},
+                    {"evidenceType": "PERSON_AUTH", "sourceType": "personnel", "required": true},
+                    {"evidenceType": "TECHNICAL_REVIEW", "required": true}
                   ]
                 }
                 """;

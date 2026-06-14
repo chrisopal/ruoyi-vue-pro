@@ -106,6 +106,9 @@ public class LimsQualityGateService {
             if (requiresEquipmentEvidence(evidenceType, sourceType) && !hasEquipmentEvidence(task)) {
                 throw exception(TEST_EVIDENCE_INCOMPLETE);
             }
+            if (requiresPersonnelEvidence(evidenceType, sourceType) && !hasPersonnelEvidence(task)) {
+                throw exception(TEST_EVIDENCE_INCOMPLETE);
+            }
             if (requiresReviewEvidence(evidenceType, sourceType) && !hasApprovedReview(reviews)) {
                 throw exception(TEST_EVIDENCE_INCOMPLETE);
             }
@@ -245,6 +248,11 @@ public class LimsQualityGateService {
         return evidence.isArray() && evidence.size() > 0;
     }
 
+    private boolean hasPersonnelEvidence(LimsTestTaskDO task) {
+        JsonNode evidence = readObject(task.getPersonnelEvidenceSnapshot());
+        return evidence.isArray() && evidence.size() > 0;
+    }
+
     private boolean hasApprovedReview(List<LimsTaskReviewDO> reviews) {
         return reviews.stream().anyMatch(review -> LimsTaskReviewStatus.APPROVED.equalsIgnoreCase(review.getReviewStatus()));
     }
@@ -255,6 +263,10 @@ public class LimsQualityGateService {
 
     private boolean requiresEquipmentEvidence(String evidenceType, String sourceType) {
         return evidenceType.contains("EQUIPMENT") || evidenceType.contains("CALIBRATION") || sourceType.contains("EQUIPMENT");
+    }
+
+    private boolean requiresPersonnelEvidence(String evidenceType, String sourceType) {
+        return evidenceType.contains("PERSON") || sourceType.contains("PERSONNEL");
     }
 
     private boolean requiresReviewEvidence(String evidenceType, String sourceType) {

@@ -9,8 +9,11 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskScheduleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.PersonnelGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
+import cn.iocoder.yudao.module.lims.service.workflow.model.AvailablePersonnel;
 import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
+import cn.iocoder.yudao.module.lims.service.workflow.model.PersonnelAuthorizationEvidence;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -37,6 +40,8 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
     private LimsTaskLifecycleService lifecycleService;
     @Mock
     private EquipmentGateway equipmentGateway;
+    @Mock
+    private PersonnelGateway personnelGateway;
 
     @Test
     void schedule_shouldPersistWindowAndMoveTaskToScheduled() {
@@ -47,6 +52,8 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
         when(scheduleMapper.selectActiveByAssignedUserId(99L)).thenReturn(List.of());
         when(equipmentGateway.getAvailableEquipment("ENV", "PH")).thenReturn(List.of(equipment()));
         when(equipmentGateway.getCurrentCalibrationEvidence(88L)).thenReturn(List.of(evidence()));
+        when(personnelGateway.getAvailablePersonnel("PH", null, 88L)).thenReturn(List.of(personnel()));
+        when(personnelGateway.getCurrentAuthorizationEvidence(99L, "PH", null, 88L)).thenReturn(List.of(personnelEvidence()));
 
         service.schedule(command());
 
@@ -65,7 +72,11 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
                         && "PH-METER-001".equals(updated.getEquipmentCode())
                         && "酸度计".equals(updated.getEquipmentName())
                         && updated.getEquipmentSnapshot().contains("PH-METER-001")
-                        && updated.getEquipmentEvidenceSnapshot().contains("CERT-001")));
+                        && updated.getEquipmentEvidenceSnapshot().contains("CERT-001")
+                        && Long.valueOf(99L).equals(updated.getAssignedUserId())
+                        && "张三".equals(updated.getAssignedUserName())
+                        && updated.getPersonnelSnapshot().contains("张三")
+                        && updated.getPersonnelEvidenceSnapshot().contains("AUTH-001")));
         verify(lifecycleService).writeEvent(10L, "REQ-001-T01", LimsTaskEventType.SCHEDULED,
                 LimsTaskStatus.GENERATED, LimsTaskStatus.SCHEDULED, "任务已排程", null);
     }
@@ -74,6 +85,20 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
     void schedule_shouldRejectOverlappingEquipmentWindow() {
         when(taskMapper.selectById(10L)).thenReturn(task(10L));
         when(scheduleMapper.selectActiveByEquipmentId(88L)).thenReturn(List.of(existing()));
+
+        assertThrows(Exception.class, () -> service.schedule(command()));
+    }
+
+    @Test
+    void schedule_shouldRejectUnauthorizedPersonnel() {
+        LimsTestTaskDO task = task(10L);
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request("ENV"));
+        when(scheduleMapper.selectActiveByEquipmentId(88L)).thenReturn(List.of());
+        when(scheduleMapper.selectActiveByAssignedUserId(99L)).thenReturn(List.of());
+        when(equipmentGateway.getAvailableEquipment("ENV", "PH")).thenReturn(List.of(equipment()));
+        when(equipmentGateway.getCurrentCalibrationEvidence(88L)).thenReturn(List.of(evidence()));
+        when(personnelGateway.getAvailablePersonnel("PH", null, 88L)).thenReturn(List.of());
 
         assertThrows(Exception.class, () -> service.schedule(command()));
     }
@@ -132,6 +157,18 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
     private static CalibrationEvidence evidence() {
         return new CalibrationEvidence(1000L, 88L, "calibration", "CERT-001", "计量院",
                 "2026-01-01", "2099-12-31", "passed", "https://example.test/cert.pdf", true);
+    }
+
+    private static AvailablePersonnel personnel() {
+        return new AvailablePersonnel(99L, "张三", "testing", "PH", 200L,
+                "2099-12-31", "testing", "PH", "COMP-001", true);
+    }
+
+    private static PersonnelAuthorizationEvidence personnelEvidence() {
+        return new PersonnelAuthorizationEvidence(200L, 99L, "张三", "testing", "PH",
+                "2026-01-01", "2099-12-31", "active", "https://example.test/auth.pdf",
+                300L, "testing", "PH", "AUTH-001",
+                "https://example.test/competence.pdf", "合格", true);
     }
 
 }

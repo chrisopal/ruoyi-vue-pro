@@ -2,9 +2,11 @@ package cn.iocoder.yudao.module.lab.service.quality;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
+import cn.iocoder.yudao.module.lab.controller.admin.evidencelink.vo.LabEvidenceLinkSaveReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordPageReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordRespVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordSaveReqVO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.evidenceobject.LabEvidenceObjectDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.evidencelink.LabEvidenceLinkDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.standard.LabStandardClauseDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.clausemapping.LabClauseFunctionMappingDO;
@@ -35,18 +37,39 @@ import cn.iocoder.yudao.module.lab.dal.mysql.audit.LabInternalAuditMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.audit.LabManagementReviewMapper;
 import cn.iocoder.yudao.module.lab.service.equipment.LabEquipmentTraceabilityService;
 import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
+import cn.iocoder.yudao.module.lab.service.evidencelink.LabEvidenceLinkService;
+import cn.iocoder.yudao.module.lab.service.evidenceobject.LabEvidenceObjectService;
+import cn.iocoder.yudao.module.lab.service.quality.dto.LabPersonnelAuthorizationSummaryDTO;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @Validated
 public class LabQualityRecordService {
+
+    private static final String STATUS_ACTIVE = "active";
+    private static final String STATUS_VALID = "valid";
+    private static final String STATUS_EFFECTIVE = "effective";
+    private static final String STATUS_APPROVED = "approved";
+    private static final String STATUS_DRAFT = "draft";
+    private static final String EVIDENCE_TYPE_PERSON_AUTH = "PERSON_AUTH";
+    private static final String EVIDENCE_SOURCE_PERSONNEL_AUTHORIZATION = "lab_personnel_authorization";
+    private static final String BUSINESS_DOMAIN_PERSONNEL = "personnel";
+    private static final String LINKED_BIZ_TYPE_PERSONNEL_USER = "personnel_user";
 
     @Resource
     private LabClauseFunctionMappingMapper clauseMappingMapper;
@@ -78,6 +101,10 @@ public class LabQualityRecordService {
     private LabStandardClauseMapper standardClauseMapper;
     @Resource
     private LabEvidenceLinkMapper evidenceLinkMapper;
+    @Resource
+    private LabEvidenceObjectService evidenceObjectService;
+    @Resource
+    private LabEvidenceLinkService evidenceLinkService;
 
     public Long createClauseMapping(LabQualityRecordSaveReqVO createReqVO) {
         LabClauseFunctionMappingDO record = BeanUtils.toBean(createReqVO, LabClauseFunctionMappingDO.class);
@@ -189,12 +216,16 @@ public class LabQualityRecordService {
 
     public Long createPersonnelAuthorization(LabQualityRecordSaveReqVO createReqVO) {
         LabPersonnelAuthorizationDO record = BeanUtils.toBean(createReqVO, LabPersonnelAuthorizationDO.class);
+        normalizePersonnelAuthorization(record);
         personnelAuthorizationMapper.insert(record);
+        createPersonnelAuthorizationEvidenceChain(record);
         return record.getId();
     }
 
     public void updatePersonnelAuthorization(LabQualityRecordSaveReqVO updateReqVO) {
-        personnelAuthorizationMapper.updateById(BeanUtils.toBean(updateReqVO, LabPersonnelAuthorizationDO.class));
+        LabPersonnelAuthorizationDO record = BeanUtils.toBean(updateReqVO, LabPersonnelAuthorizationDO.class);
+        normalizePersonnelAuthorization(record);
+        personnelAuthorizationMapper.updateById(record);
     }
 
     public void deletePersonnelAuthorization(Long id) {
@@ -211,6 +242,237 @@ public class LabQualityRecordService {
 
     public void updatePersonnelAuthorizationStatus(Long id, String status) {
         personnelAuthorizationMapper.update(null, new UpdateWrapper<LabPersonnelAuthorizationDO>().eq("id", id).set("status", status));
+    }
+
+    public List<LabPersonnelAuthorizationSummaryDTO> getAvailablePersonnel(String testItem, Long methodId, Long equipmentId) {
+        List<LabPersonnelAuthorizationDO> authorizations = personnelAuthorizationMapper.selectListForAvailability();
+        return buildPersonnelAuthorizationSummaries(authorizations, testItem, methodId, equipmentId).stream()
+                .collect(Collectors.toMap(LabPersonnelAuthorizationSummaryDTO::getUserId,
+                        Function.identity(), this::preferLaterValidTo))
+                .values().stream()
+                .sorted(Comparator.comparing(LabPersonnelAuthorizationSummaryDTO::getUserName,
+                                Comparator.nullsLast(String::compareToIgnoreCase))
+                        .thenComparing(LabPersonnelAuthorizationSummaryDTO::getUserId,
+                                Comparator.nullsLast(Long::compareTo)))
+                .toList();
+    }
+
+    public List<LabPersonnelAuthorizationSummaryDTO> getCurrentPersonnelAuthorizationEvidence(Long userId, String testItem,
+                                                                                              Long methodId, Long equipmentId) {
+        if (userId == null) {
+            return List.of();
+        }
+        return buildPersonnelAuthorizationSummaries(personnelAuthorizationMapper.selectListByUserId(userId),
+                testItem, methodId, equipmentId);
+    }
+
+    private List<LabPersonnelAuthorizationSummaryDTO> buildPersonnelAuthorizationSummaries(
+            List<LabPersonnelAuthorizationDO> authorizations, String testItem, Long methodId, Long equipmentId) {
+        List<LabPersonnelAuthorizationDO> effectiveAuthorizations = authorizations.stream()
+                .filter(this::isUsableAuthorization)
+                .filter(authorization -> matchesMethod(authorization, methodId))
+                .filter(authorization -> matchesEquipment(authorization, equipmentId))
+                .filter(authorization -> matchesText(authorization.getAuthScope(), testItem))
+                .toList();
+        List<Long> userIds = effectiveAuthorizations.stream()
+                .map(LabPersonnelAuthorizationDO::getUserId)
+                .filter(userId -> userId != null)
+                .distinct()
+                .toList();
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, List<LabPersonnelCompetenceDO>> competenceByUser = personnelCompetenceMapper.selectListByUserIds(userIds).stream()
+                .filter(this::isUsableCompetence)
+                .filter(competence -> matchesText(competence.getCompetenceItem(), testItem))
+                .collect(Collectors.groupingBy(LabPersonnelCompetenceDO::getUserId));
+        return effectiveAuthorizations.stream()
+                .map(authorization -> toPersonnelSummary(authorization, selectCompetence(competenceByUser.get(authorization.getUserId()))))
+                .filter(summary -> summary.getCompetenceId() != null)
+                .toList();
+    }
+
+    private LabPersonnelCompetenceDO selectCompetence(List<LabPersonnelCompetenceDO> competences) {
+        if (competences == null || competences.isEmpty()) {
+            return null;
+        }
+        return competences.stream()
+                .max(Comparator.comparing(LabPersonnelCompetenceDO::getValidTo, Comparator.nullsFirst(String::compareTo))
+                        .thenComparing(LabPersonnelCompetenceDO::getId, Comparator.nullsFirst(Long::compareTo)))
+                .orElse(null);
+    }
+
+    private LabPersonnelAuthorizationSummaryDTO toPersonnelSummary(LabPersonnelAuthorizationDO authorization,
+                                                                   LabPersonnelCompetenceDO competence) {
+        LabPersonnelAuthorizationSummaryDTO dto = new LabPersonnelAuthorizationSummaryDTO();
+        dto.setAuthorizationId(authorization.getId());
+        dto.setUserId(authorization.getUserId());
+        dto.setAuthType(authorization.getAuthType());
+        dto.setAuthScope(authorization.getAuthScope());
+        dto.setMethodId(authorization.getMethodId());
+        dto.setEquipmentId(authorization.getEquipmentId());
+        dto.setAuthorizedTime(authorization.getAuthorizedTime());
+        dto.setValidFrom(authorization.getValidFrom());
+        dto.setValidTo(authorization.getValidTo());
+        dto.setStatus(authorization.getStatus());
+        dto.setFileUrl(authorization.getFileUrl());
+        dto.setEffective(true);
+        if (competence != null) {
+            dto.setCompetenceId(competence.getId());
+            dto.setUserName(competence.getUserName());
+            dto.setCompetenceType(competence.getCompetenceType());
+            dto.setCompetenceItem(competence.getCompetenceItem());
+            dto.setCertificateNo(competence.getCertificateNo());
+            dto.setCertificateFileUrl(competence.getCertificateFileUrl());
+            dto.setAssessmentResult(competence.getAssessmentResult());
+        } else {
+            dto.setUserName(authorization.getUserId() == null ? null : "用户#" + authorization.getUserId());
+        }
+        return dto;
+    }
+
+    private LabPersonnelAuthorizationSummaryDTO preferLaterValidTo(LabPersonnelAuthorizationSummaryDTO left,
+                                                                   LabPersonnelAuthorizationSummaryDTO right) {
+        String leftValidTo = left.getValidTo() == null ? "" : left.getValidTo();
+        String rightValidTo = right.getValidTo() == null ? "" : right.getValidTo();
+        return rightValidTo.compareTo(leftValidTo) >= 0 ? right : left;
+    }
+
+    private boolean isUsableAuthorization(LabPersonnelAuthorizationDO authorization) {
+        return authorization != null
+                && authorization.getUserId() != null
+                && isActiveStatus(authorization.getStatus())
+                && isCurrentlyEffective(authorization.getValidFrom(), authorization.getValidTo());
+    }
+
+    private boolean isUsableCompetence(LabPersonnelCompetenceDO competence) {
+        return competence != null
+                && competence.getUserId() != null
+                && isActiveStatus(competence.getStatus())
+                && isCurrentlyEffective(competence.getValidFrom(), competence.getValidTo())
+                && isPositiveOrBlank(competence.getAssessmentResult());
+    }
+
+    private boolean isActiveStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return false;
+        }
+        String normalized = status.trim().toLowerCase(Locale.ROOT);
+        return STATUS_ACTIVE.equals(normalized)
+                || STATUS_VALID.equals(normalized)
+                || STATUS_EFFECTIVE.equals(normalized)
+                || STATUS_APPROVED.equals(normalized);
+    }
+
+    private boolean isCurrentlyEffective(String validFrom, String validTo) {
+        LocalDate today = LocalDate.now();
+        LocalDate from = parseLocalDate(validFrom);
+        LocalDate to = parseLocalDate(validTo);
+        return (from == null || !from.isAfter(today)) && to != null && !to.isBefore(today);
+    }
+
+    private boolean isPositiveOrBlank(String value) {
+        if (!StringUtils.hasText(value)) {
+            return true;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return "pass".equals(normalized) || "passed".equals(normalized)
+                || "approved".equals(normalized) || "qualified".equals(normalized)
+                || "合格".equals(value.trim()) || "通过".equals(value.trim());
+    }
+
+    private boolean matchesMethod(LabPersonnelAuthorizationDO authorization, Long methodId) {
+        return methodId == null || authorization.getMethodId() == null || methodId.equals(authorization.getMethodId());
+    }
+
+    private boolean matchesEquipment(LabPersonnelAuthorizationDO authorization, Long equipmentId) {
+        return equipmentId == null || authorization.getEquipmentId() == null || equipmentId.equals(authorization.getEquipmentId());
+    }
+
+    private boolean matchesText(String text, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return true;
+        }
+        return StringUtils.hasText(text)
+                && text.toLowerCase(Locale.ROOT).contains(keyword.toLowerCase(Locale.ROOT));
+    }
+
+    private void normalizePersonnelAuthorization(LabPersonnelAuthorizationDO authorization) {
+        if (!StringUtils.hasText(authorization.getStatus()) || STATUS_DRAFT.equalsIgnoreCase(authorization.getStatus())) {
+            authorization.setStatus(STATUS_ACTIVE);
+        }
+    }
+
+    private void createPersonnelAuthorizationEvidenceChain(LabPersonnelAuthorizationDO authorization) {
+        if (authorization.getUserId() == null) {
+            return;
+        }
+        Long evidenceObjectId = evidenceObjectService.createEvidenceObject(buildPersonnelAuthorizationEvidenceObject(authorization));
+        evidenceLinkService.createEvidenceLink(buildPersonnelAuthorizationEvidenceLink(authorization, evidenceObjectId));
+    }
+
+    private LabEvidenceObjectDO buildPersonnelAuthorizationEvidenceObject(LabPersonnelAuthorizationDO authorization) {
+        LabEvidenceObjectDO evidenceObject = new LabEvidenceObjectDO();
+        evidenceObject.setEvidenceCode("PERSON-AUTH-" + authorization.getUserId() + "-" + authorization.getId());
+        evidenceObject.setEvidenceName("人员授权-" + authorization.getUserId() + "-" + nullToEmpty(authorization.getAuthScope()));
+        evidenceObject.setEvidenceType(EVIDENCE_TYPE_PERSON_AUTH);
+        evidenceObject.setSourceObject(EVIDENCE_SOURCE_PERSONNEL_AUTHORIZATION);
+        evidenceObject.setSourceObjectId(authorization.getId());
+        evidenceObject.setSourceObjectNo(String.valueOf(authorization.getUserId()));
+        evidenceObject.setBusinessDomain(BUSINESS_DOMAIN_PERSONNEL);
+        evidenceObject.setFileUrl(authorization.getFileUrl());
+        evidenceObject.setFileName("PERSON-AUTH-" + authorization.getId());
+        evidenceObject.setFileFormat(resolveFileFormat(authorization.getFileUrl()));
+        evidenceObject.setIssuedBy(authorization.getAuthorizedBy() == null ? null : String.valueOf(authorization.getAuthorizedBy()));
+        evidenceObject.setIssuedAt(parseLocalDate(authorization.getAuthorizedTime()));
+        evidenceObject.setValidFrom(parseLocalDate(authorization.getValidFrom()));
+        evidenceObject.setValidTo(parseLocalDate(authorization.getValidTo()));
+        evidenceObject.setStatus(STATUS_ACTIVE.equalsIgnoreCase(authorization.getStatus()) ? STATUS_EFFECTIVE : authorization.getStatus());
+        evidenceObject.setSummary(String.format("用户%s的人员授权，范围%s，有效期至%s",
+                authorization.getUserId(),
+                nullToEmpty(authorization.getAuthScope()),
+                nullToEmpty(authorization.getValidTo())));
+        return evidenceObject;
+    }
+
+    private LabEvidenceLinkSaveReqVO buildPersonnelAuthorizationEvidenceLink(LabPersonnelAuthorizationDO authorization,
+                                                                             Long evidenceObjectId) {
+        LabEvidenceLinkSaveReqVO link = new LabEvidenceLinkSaveReqVO();
+        link.setEvidenceObjectId(evidenceObjectId);
+        link.setLinkedBizType(LINKED_BIZ_TYPE_PERSONNEL_USER);
+        link.setLinkedBizId(authorization.getUserId());
+        link.setLinkedBizNo(String.valueOf(authorization.getUserId()));
+        LabStandardClauseDO personnelClause = standardClauseMapper.selectFirstByClauseCategory(BUSINESS_DOMAIN_PERSONNEL);
+        link.setClauseId(personnelClause == null ? null : personnelClause.getId());
+        link.setClauseCategory(BUSINESS_DOMAIN_PERSONNEL);
+        link.setLinkStatus("linked");
+        link.setLinkReason("人员授权支撑 CNAS/CMA 人员能力与授权条款");
+        link.setRemark("由人员授权记录自动生成");
+        return link;
+    }
+
+    private String resolveFileFormat(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl) || !fileUrl.contains(".")) {
+            return null;
+        }
+        String suffix = fileUrl.substring(fileUrl.lastIndexOf('.') + 1);
+        return suffix.length() > 32 ? null : suffix.toLowerCase(Locale.ROOT);
+    }
+
+    private LocalDate parseLocalDate(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            String dateValue = value.length() > 10 ? value.substring(0, 10) : value;
+            return LocalDate.parse(dateValue);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
 

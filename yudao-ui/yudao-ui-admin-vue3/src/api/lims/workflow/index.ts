@@ -41,6 +41,9 @@ export interface LimsWorkflowVO {
   methodName?: string
   standardClauseId?: number
   assignedUserId?: number
+  assignedUserName?: string
+  personnelSnapshot?: string
+  personnelEvidenceSnapshot?: string
   equipmentId?: number
   equipmentCode?: string
   equipmentName?: string
@@ -123,6 +126,7 @@ export interface LimsTaskSchedulePayload {
   id?: number
   taskId?: number
   assignedUserId?: number
+  assignedUserName?: string
   equipmentId?: number
   equipmentCode?: string
   equipmentName?: string
@@ -138,6 +142,7 @@ export interface LimsTaskScheduleVO extends LimsWorkflowVO {
   sampleId?: number
   equipmentId?: number
   assignedUserId?: number
+  assignedUserName?: string
   plannedStartTime?: string
   plannedEndTime?: string
   scheduleStatus?: string
