@@ -327,6 +327,16 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void updateTaskStatus_shouldMapScheduledStatusToScheduledEvent() {
+        when(taskMapper.selectById(20L)).thenReturn(taskWithEquipmentEvidence());
+
+        workflowService.updateTaskStatus(20L, LimsTaskStatus.SCHEDULED);
+
+        verify(taskLifecycleService).transition(20L, LimsTaskStatus.SCHEDULED,
+                LimsTaskEventType.SCHEDULED, "手动更新任务状态", null);
+    }
+
+    @Test
     void issueReport_shouldRegisterIssuedReportAsEvidenceObject() {
         LimsReportDO report = report();
         LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
