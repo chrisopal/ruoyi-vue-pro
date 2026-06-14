@@ -888,6 +888,37 @@ CREATE TABLE IF NOT EXISTS `lab_personnel_authorization` (
   KEY `idx_lab_personnel_authorization_tenant_deleted` (`tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室符合性扩展表';
 
+CREATE TABLE IF NOT EXISTS `lab_equipment_asset` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `equipment_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '设备编码',
+  `equipment_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '设备名称',
+  `equipment_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备类型',
+  `manufacturer` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '制造商',
+  `model` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '型号',
+  `serial_no` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '序列号',
+  `lab_area` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '实验区域',
+  `domain_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '检测方向编码',
+  `capability_scope` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '能力范围',
+  `responsible_user_id` bigint NULL DEFAULT NULL COMMENT '责任人',
+  `calibration_valid_until` date NULL DEFAULT NULL COMMENT '校准有效期',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'enabled' COMMENT '状态',
+  `iot_enabled` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否启用物联',
+  `iot_product_id` bigint NULL DEFAULT NULL COMMENT 'IoT产品编号',
+  `iot_device_id` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT 'IoT设备编号',
+  `data_source_type` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '数据来源类型',
+  `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_lab_equipment_asset_code_tenant_deleted` (`equipment_code`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_equipment_asset_status` (`status`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_equipment_asset_domain` (`domain_code`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室设备主档';
+
 CREATE TABLE IF NOT EXISTS `lab_equipment_traceability` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `equipment_id` bigint NULL DEFAULT NULL COMMENT 'equipment_id',
@@ -909,7 +940,8 @@ CREATE TABLE IF NOT EXISTS `lab_equipment_traceability` (
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
   PRIMARY KEY (`id`) USING BTREE,
-  KEY `idx_lab_equipment_traceability_tenant_deleted` (`tenant_id`, `deleted`) USING BTREE
+  KEY `idx_lab_equipment_traceability_tenant_deleted` (`tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_equipment_traceability_equipment` (`equipment_id`, `status`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室符合性扩展表';
 
 CREATE TABLE IF NOT EXISTS `lab_equipment_intermediate_check` (
@@ -1162,6 +1194,20 @@ SELECT '人员授权导出', 'lab:personnel-authorization:export', 3, 4, @lab_pe
 WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:personnel-authorization:export' AND `deleted` = b'0');
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '设备主档', 'lab:equipment-asset:query', 2, 42, @lab_config_menu_id, 'equipment-asset', 'ep:cpu', 'lab/equipment-asset/index', 'LabEquipmentAsset', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:equipment-asset:query' AND `deleted` = b'0');
+SET @lab_equipment_asset_menu_id := (SELECT `id` FROM `system_menu` WHERE `permission` = 'lab:equipment-asset:query' AND `deleted` = b'0' ORDER BY `id` ASC LIMIT 1);
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '设备主档新增', 'lab:equipment-asset:create', 3, 1, @lab_equipment_asset_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:equipment-asset:create' AND `deleted` = b'0');
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '设备主档修改', 'lab:equipment-asset:update', 3, 2, @lab_equipment_asset_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:equipment-asset:update' AND `deleted` = b'0');
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '设备主档删除', 'lab:equipment-asset:delete', 3, 3, @lab_equipment_asset_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:equipment-asset:delete' AND `deleted` = b'0');
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '设备溯源', 'lab:equipment-traceability:query', 2, 42, @lab_config_menu_id, 'equipment-traceability', 'ep:odometer', 'lab/equipment-traceability/index', 'LabEquipmentTraceability', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:equipment-traceability:query' AND `deleted` = b'0');
 SET @lab_equipment_traceability_menu_id := (SELECT `id` FROM `system_menu` WHERE `permission` = 'lab:equipment-traceability:query' AND `deleted` = b'0' ORDER BY `id` ASC LIMIT 1);
@@ -1383,6 +1429,11 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   `method_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '方法名称',
   `standard_clause_id` bigint NULL DEFAULT NULL COMMENT '标准条款编号',
   `assigned_user_id` bigint NULL DEFAULT NULL COMMENT '执行人',
+  `equipment_id` bigint NULL DEFAULT NULL COMMENT '设备主档编号',
+  `equipment_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备编码',
+  `equipment_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备名称',
+  `equipment_snapshot` json NULL COMMENT '设备主档快照',
+  `equipment_evidence_snapshot` json NULL COMMENT '设备证据快照',
   `planned_start_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '计划开始',
   `planned_end_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '计划结束',
   `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'assigned' COMMENT '状态',
@@ -1395,7 +1446,8 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_lims_task_request` (`request_id`, `tenant_id`, `deleted`) USING BTREE,
-  KEY `idx_lims_task_sample` (`sample_id`, `tenant_id`, `deleted`) USING BTREE
+  KEY `idx_lims_task_sample` (`sample_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_equipment` (`equipment_id`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务';
 
 CREATE TABLE IF NOT EXISTS `lims_test_result` (
@@ -1732,14 +1784,15 @@ SET `parent_id` = @lab_resource_environment_menu_id,
     `sort` = CASE `permission`
       WHEN 'lab:personnel-competence:query' THEN 10
       WHEN 'lab:personnel-authorization:query' THEN 20
-      WHEN 'lab:equipment-traceability:query' THEN 30
-      WHEN 'lab:equipment-intermediate-check:query' THEN 40
-      WHEN 'lab:environment-record:query' THEN 50
+      WHEN 'lab:equipment-asset:query' THEN 30
+      WHEN 'lab:equipment-traceability:query' THEN 40
+      WHEN 'lab:equipment-intermediate-check:query' THEN 50
+      WHEN 'lab:environment-record:query' THEN 60
       ELSE `sort`
     END,
     `updater` = 'admin',
     `update_time` = NOW()
-WHERE `permission` IN ('lab:personnel-competence:query', 'lab:personnel-authorization:query', 'lab:equipment-traceability:query', 'lab:equipment-intermediate-check:query', 'lab:environment-record:query')
+WHERE `permission` IN ('lab:personnel-competence:query', 'lab:personnel-authorization:query', 'lab:equipment-asset:query', 'lab:equipment-traceability:query', 'lab:equipment-intermediate-check:query', 'lab:environment-record:query')
   AND `deleted` = b'0';
 
 UPDATE `system_menu`
