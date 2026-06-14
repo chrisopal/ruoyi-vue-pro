@@ -145,11 +145,14 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         workflowService.generateTasks(1L);
 
         verify(taskMapper).insert(argThat((LimsTestTaskDO task) ->
-                "generated".equals(task.getTaskStatus())
+                "generated".equals(task.getStatus())
+                        && "generated".equals(task.getTaskStatus())
                         && "unscheduled".equals(task.getScheduleStatus())
                         && "none".equals(task.getQcStatus())
                         && "none".equals(task.getReviewStatus())
                         && Boolean.FALSE.equals(task.getReportEligible())
+                        && task.getMethodSnapshot() != null
+                        && (task.getMethodSnapshot().contains("pH") || task.getMethodSnapshot().contains("HJ-1147"))
                         && task.getDurationMinutes() != null
                         && task.getDurationMinutes() >= 1));
     }
