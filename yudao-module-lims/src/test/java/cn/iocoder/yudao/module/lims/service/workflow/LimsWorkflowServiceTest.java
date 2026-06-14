@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsTaskQualityGateRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -372,6 +373,49 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         assertEquals(plan.getPlanJson(), response.getPlanJson());
         assertEquals("""
                 {"templateVersion":"1.0","outputFormats":["WORD","PDF","EXCEL"],"sections":[{"sectionCode":"RESULTS"}]}""".trim(), response.getReportDraftPlan());
+    }
+
+    @Test
+    void getTaskQualityGate_shouldExposeTaskRequirementsFromExecutionPlan() {
+        when(taskMapper.selectById(20L)).thenReturn(taskWithEquipmentEvidence());
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+        LimsExecutionPlanDO plan = new LimsExecutionPlanDO();
+        plan.setRequestId(1L);
+        plan.setStatus("generated");
+        plan.setPlanJson("""
+                {
+                  "taskPlans": [
+                    {
+                      "itemCode": "PH",
+                      "itemName": "pH",
+                      "methodCode": "GB6920",
+                      "sampleRequirements": [{"requirementCode": "SAMPLE_QTY"}],
+                      "resultFields": [{"fieldCode": "PH_VALUE", "fieldName": "pH值"}],
+                      "qcRules": [{"ruleCode": "BLANK", "ruleName": "空白样"}],
+                      "evidenceRequirements": [{"requirementCode": "EQUIPMENT_CERT"}],
+                      "reportSections": [{"sectionCode": "RESULTS"}]
+                    }
+                  ],
+                  "reportDraftPlan": {
+                    "templateCodes": ["REPORT_BASIC_V1"],
+                    "sections": [{"sectionCode": "RESULTS"}],
+                    "dataBindings": [{"fieldCode": "PH_VALUE"}]
+                  }
+                }
+                """);
+        when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+
+        LimsTaskQualityGateRespVO response = workflowService.getTaskQualityGate(20L);
+
+        assertEquals(20L, response.getTaskId());
+        assertEquals("generated", response.getExecutionPlanStatus());
+        assertEquals("SAMPLE_QTY", response.getSampleRequirements().get(0).path("requirementCode").asText());
+        assertEquals("PH_VALUE", response.getResultFields().get(0).path("fieldCode").asText());
+        assertEquals("BLANK", response.getQcRules().get(0).path("ruleCode").asText());
+        assertEquals("EQUIPMENT_CERT", response.getEvidenceRequirements().get(0).path("requirementCode").asText());
+        assertEquals("REPORT_BASIC_V1", response.getTemplateCodes().get(0).asText());
+        assertEquals("BLANK", response.getQcRuleSnapshot().path("rules").get(0).path("ruleCode").asText());
+        assertEquals(true, response.getHasEquipmentEvidence());
     }
 
     @Test

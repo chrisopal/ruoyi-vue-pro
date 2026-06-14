@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" :title="drawerTitle" size="760px">
+  <el-drawer v-model="visible" append-to-body :title="drawerTitle" size="760px" :z-index="3000">
     <div v-loading="loading" class="flex h-full flex-col gap-16px">
       <el-form :model="formData" label-width="96px">
         <el-row :gutter="16">

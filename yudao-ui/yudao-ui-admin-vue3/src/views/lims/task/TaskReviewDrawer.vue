@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" :title="drawerTitle" size="820px">
+  <el-drawer v-model="visible" append-to-body :title="drawerTitle" size="820px" :z-index="3000">
     <div v-loading="loading" class="flex h-full flex-col gap-16px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="任务编号">{{ taskDetail?.taskNo || '-' }}</el-descriptions-item>

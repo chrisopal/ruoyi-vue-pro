@@ -144,7 +144,7 @@
         </template>
       </el-table-column>
       <el-table-column align="center" label="阻断原因" min-width="180" prop="blockReason" show-overflow-tooltip />
-      <el-table-column align="center" fixed="right" label="操作" width="360">
+      <el-table-column align="center" fixed="right" label="操作" width="410">
         <template #default="{ row }">
           <el-button v-hasPermi="['lims:task:schedule']" link type="primary" @click="openSchedule(row)">
             排程
@@ -167,6 +167,9 @@
           <el-button v-hasPermi="['lims:task:record']" link type="primary" @click="openRecord(row, 'qc')">
             QC
           </el-button>
+          <el-button v-hasPermi="['lims:task:query']" link type="primary" @click="openQualityGate(row)">
+            门禁
+          </el-button>
           <el-button v-hasPermi="['lims:task:review']" link type="primary" @click="openReview(row)">
             复核
           </el-button>
@@ -184,11 +187,13 @@
   <TaskSchedulePanel ref="schedulePanelRef" @success="getList" />
   <TaskReadinessDrawer ref="readinessDrawerRef" @success="getList" />
   <TaskRecordDrawer ref="recordDrawerRef" @success="getList" />
+  <TaskQualityGateDrawer ref="qualityGateDrawerRef" />
   <TaskReviewDrawer ref="reviewDrawerRef" @success="getList" />
 </template>
 
 <script lang="ts" setup>
 import { LimsWorkflowApi, type LimsTaskPageReqVO, type LimsTaskVO } from '@/api/lims/workflow'
+import TaskQualityGateDrawer from './TaskQualityGateDrawer.vue'
 import TaskReadinessDrawer from './TaskReadinessDrawer.vue'
 import TaskRecordDrawer from './TaskRecordDrawer.vue'
 import TaskReviewDrawer from './TaskReviewDrawer.vue'
@@ -231,6 +236,7 @@ const queryParams = reactive<LimsTaskPageReqVO>({
 const schedulePanelRef = ref<InstanceType<typeof TaskSchedulePanel>>()
 const readinessDrawerRef = ref<InstanceType<typeof TaskReadinessDrawer>>()
 const recordDrawerRef = ref<InstanceType<typeof TaskRecordDrawer>>()
+const qualityGateDrawerRef = ref<InstanceType<typeof TaskQualityGateDrawer>>()
 const reviewDrawerRef = ref<InstanceType<typeof TaskReviewDrawer>>()
 
 const syncRangeToQuery = () => {
@@ -275,6 +281,10 @@ const openReadiness = (row: LimsTaskVO, action: 'ready' | 'start') => {
 
 const openRecord = (row: LimsTaskVO, mode: 'raw' | 'qc') => {
   recordDrawerRef.value?.open(row, mode)
+}
+
+const openQualityGate = (row: LimsTaskVO) => {
+  qualityGateDrawerRef.value?.open(row)
 }
 
 const openReview = (row: LimsTaskVO) => {

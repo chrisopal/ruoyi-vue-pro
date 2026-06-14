@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.lims.controller.admin.workflow;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsTaskQualityGateRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -157,6 +158,13 @@ public class LimsWorkflowController {
     @PreAuthorize("@ss.hasPermission('lims:task:query')")
     public CommonResult<LimsWorkflowRespVO> getTask(@RequestParam("id") Long id) {
         return success(workflowService.getTask(id));
+    }
+
+    @GetMapping("/lims/task/quality-gate")
+    @Operation(summary = "获得检测任务质量门禁")
+    @PreAuthorize("@ss.hasPermission('lims:task:query')")
+    public CommonResult<LimsTaskQualityGateRespVO> getTaskQualityGate(@RequestParam("id") Long id) {
+        return success(workflowService.getTaskQualityGate(id));
     }
 
     @PostMapping("/lims/task/create")

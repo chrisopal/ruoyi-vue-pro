@@ -4,6 +4,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsTaskQualityGateRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -264,6 +265,61 @@ public class LimsWorkflowService {
         return respVO;
     }
 
+    public LimsTaskQualityGateRespVO getTaskQualityGate(Long taskId) {
+        LimsTestTaskDO task = validateTaskExists(taskId);
+        LimsTestRequestDO request = validateRequestExists(task.getRequestId());
+        ResolvedExecutionPlan resolvedPlan = resolveExecutionPlan(request);
+        JsonNode plan = resolvedPlan.plan();
+        JsonNode taskPlan = selectTaskPlan(plan, task);
+        JsonNode reportDraftPlan = objectOrEmpty(plan.path("reportDraftPlan"));
+        JsonNode sampleRequirements = selectArray(taskPlan.path("sampleRequirements"), plan.path("sampleRequirements"));
+        JsonNode resultFields = selectArray(taskPlan.path("resultFields"), plan.path("resultFieldPlans"));
+        JsonNode qcRules = selectArray(taskPlan.path("qcRules"), plan.path("qcCheckPlans"));
+        JsonNode evidenceRequirements = selectArray(taskPlan.path("evidenceRequirements"), plan.path("evidenceRequirementPlans"));
+
+        LimsTaskQualityGateRespVO respVO = new LimsTaskQualityGateRespVO();
+        respVO.setTaskId(task.getId());
+        respVO.setRequestId(task.getRequestId());
+        respVO.setTaskNo(task.getTaskNo());
+        respVO.setTaskName(task.getTaskName());
+        respVO.setTestItem(task.getTestItem());
+        respVO.setMethodCode(task.getMethodCode());
+        respVO.setMethodName(task.getMethodName());
+        respVO.setRequestNo(request.getRequestNo());
+        respVO.setDomainCode(request.getDomainCode());
+        respVO.setDomainPackCode(StringUtils.hasText(request.getDomainPackCode())
+                ? request.getDomainPackCode() : plan.path("packCode").asText(""));
+        respVO.setDomainPackVersion(StringUtils.hasText(request.getDomainPackVersion())
+                ? request.getDomainPackVersion() : plan.path("packVersion").asText(""));
+        respVO.setWorkflowSnapshotHash(StringUtils.hasText(request.getWorkflowSnapshotHash())
+                ? request.getWorkflowSnapshotHash() : plan.path("workflowSnapshotHash").asText(""));
+        respVO.setExecutionPlanStatus(resolvedPlan.status());
+        respVO.setSampleRequirements(sampleRequirements);
+        respVO.setResultFields(resultFields);
+        respVO.setQcRules(qcRules);
+        respVO.setEvidenceRequirements(evidenceRequirements);
+        respVO.setReportSections(selectArray(taskPlan.path("reportSections"), reportDraftPlan.path("sections")));
+        respVO.setTemplateCodes(selectArray(reportDraftPlan.path("templateCodes"), null));
+        respVO.setSectionRules(selectArray(reportDraftPlan.path("sectionRules"), null));
+        respVO.setDataBindings(selectArray(reportDraftPlan.path("dataBindings"), null));
+        respVO.setReportDraftPlan(reportDraftPlan);
+        respVO.setQcRuleSnapshot(createQcRuleSnapshot(task, qcRules));
+        respVO.setTaskStatus(task.getTaskStatus());
+        respVO.setScheduleStatus(task.getScheduleStatus());
+        respVO.setQcStatus(task.getQcStatus());
+        respVO.setReviewStatus(task.getReviewStatus());
+        respVO.setReportEligible(task.getReportEligible());
+        respVO.setBlockReason(task.getBlockReason());
+        respVO.setReadinessSnapshot(task.getReadinessSnapshot());
+        respVO.setEquipmentSnapshot(task.getEquipmentSnapshot());
+        respVO.setEquipmentEvidenceSnapshot(task.getEquipmentEvidenceSnapshot());
+        respVO.setPersonnelSnapshot(task.getPersonnelSnapshot());
+        respVO.setPersonnelEvidenceSnapshot(task.getPersonnelEvidenceSnapshot());
+        respVO.setHasEquipmentEvidence(hasArrayItems(task.getEquipmentEvidenceSnapshot()));
+        respVO.setHasPersonnelEvidence(hasArrayItems(task.getPersonnelEvidenceSnapshot()));
+        return respVO;
+    }
+
     public PageResult<LimsWorkflowRespVO> getTaskPage(LimsWorkflowPageReqVO pageReqVO) {
         PageResult<LimsWorkflowRespVO> page = BeanUtils.toBean(taskMapper.selectPage(pageReqVO), LimsWorkflowRespVO.class);
         page.getList().forEach(this::enrichTaskDomain);
@@ -468,6 +524,77 @@ public class LimsWorkflowService {
     private String extractReportDraftPlan(String planJson) {
         JsonNode reportDraftPlan = readObject(planJson).path("reportDraftPlan");
         return reportDraftPlan.isMissingNode() ? "{}" : reportDraftPlan.toString();
+    }
+
+    private ResolvedExecutionPlan resolveExecutionPlan(LimsTestRequestDO request) {
+        LimsExecutionPlanDO executionPlan = executionPlanMapper.selectByRequestId(request.getId());
+        if (executionPlan != null) {
+            return new ResolvedExecutionPlan(readObject(executionPlan.getPlanJson()), executionPlan.getStatus());
+        }
+        return new ResolvedExecutionPlan(readObject(executionPlanFactory.createPlanJson(resolveWorkflowSnapshot(request))), "derived");
+    }
+
+    private JsonNode selectTaskPlan(JsonNode plan, LimsTestTaskDO task) {
+        JsonNode taskPlans = plan.path("taskPlans");
+        if (!taskPlans.isArray()) {
+            return objectMapper.createObjectNode();
+        }
+        for (JsonNode taskPlan : taskPlans) {
+            if (matchesTaskPlan(taskPlan, task)) {
+                return taskPlan;
+            }
+        }
+        return objectMapper.createObjectNode();
+    }
+
+    private boolean matchesTaskPlan(JsonNode taskPlan, LimsTestTaskDO task) {
+        return sameText(task.getTestItem(), taskPlan.path("itemCode").asText(""))
+                || sameText(task.getTestItem(), taskPlan.path("itemName").asText(""))
+                || sameText(task.getTaskName(), taskPlan.path("itemName").asText(""))
+                || sameText(task.getMethodCode(), taskPlan.path("methodCode").asText(""))
+                || sameText(task.getMethodName(), taskPlan.path("methodName").asText(""));
+    }
+
+    private boolean sameText(String left, String right) {
+        return StringUtils.hasText(left) && StringUtils.hasText(right) && left.equalsIgnoreCase(right);
+    }
+
+    private JsonNode selectArray(JsonNode primary, JsonNode fallback) {
+        if (primary != null && primary.isArray() && primary.size() > 0) {
+            return copyArray(primary);
+        }
+        return copyArray(fallback);
+    }
+
+    private JsonNode objectOrEmpty(JsonNode node) {
+        if (node != null && node.isObject()) {
+            return node.deepCopy();
+        }
+        return objectMapper.createObjectNode();
+    }
+
+    private ArrayNode copyArray(JsonNode node) {
+        ArrayNode array = objectMapper.createArrayNode();
+        if (node != null && node.isArray()) {
+            node.forEach(item -> array.add(item.deepCopy()));
+        }
+        return array;
+    }
+
+    private ObjectNode createQcRuleSnapshot(LimsTestTaskDO task, JsonNode qcRules) {
+        ObjectNode snapshot = objectMapper.createObjectNode();
+        snapshot.put("source", "execution_plan");
+        snapshot.put("taskId", task.getId());
+        snapshot.put("taskNo", task.getTaskNo());
+        snapshot.put("testItem", task.getTestItem());
+        snapshot.put("methodCode", task.getMethodCode());
+        snapshot.set("rules", copyArray(qcRules));
+        return snapshot;
+    }
+
+    private boolean hasArrayItems(String json) {
+        JsonNode node = readObject(json);
+        return node.isArray() && node.size() > 0;
     }
 
     public Long generateReport(Long requestId) {
@@ -962,6 +1089,9 @@ public class LimsWorkflowService {
     }
 
     private record TestItemConfig(String itemName, String methodCode, String methodName, Long durationMinutes) {
+    }
+
+    private record ResolvedExecutionPlan(JsonNode plan, String status) {
     }
 
 }

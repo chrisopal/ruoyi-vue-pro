@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" :title="drawerTitle" size="760px">
+  <el-drawer v-model="visible" append-to-body :title="drawerTitle" size="760px" :z-index="3000">
     <div v-loading="loading" class="flex h-full flex-col gap-16px">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="任务编号">{{ taskDetail?.taskNo || '-' }}</el-descriptions-item>
@@ -20,6 +20,14 @@
             show-icon
             title="当前任务状态通常不允许提交原始记录，若继续提交将由后端做最终校验。"
             type="warning"
+          />
+          <el-alert
+            v-if="configuredResultFields.length > 0"
+            :closable="false"
+            class="mt-12px"
+            show-icon
+            :title="`已从执行计划带入 ${configuredResultFields.length} 个结果字段，提交时后端会按字段规则校验。`"
+            type="info"
           />
           <el-form ref="rawFormRef" :model="rawForm" label-width="96px" class="mt-12px">
             <el-form-item label="记录类型">
@@ -91,6 +99,19 @@
             title="当前任务状态通常不允许提交 QC 记录，若继续提交将由后端做最终校验。"
             type="warning"
           />
+          <el-alert
+            v-if="configuredQcRules.length > 0"
+            :closable="false"
+            class="mt-12px"
+            show-icon
+            :title="`已从执行计划带入 ${configuredQcRules.length} 条 QC 规则，规则快照会随 QC 记录提交。`"
+            type="info"
+          />
+          <div v-if="configuredQcRules.length > 0" class="mt-12px flex flex-wrap gap-8px">
+            <el-tag v-for="rule in configuredQcRules" :key="rule.ruleCode || rule.code || rule.ruleName">
+              {{ rule.ruleCode || rule.code || rule.ruleName || 'QC_RULE' }}
+            </el-tag>
+          </div>
           <el-form ref="qcFormRef" :model="qcForm" label-width="96px" class="mt-12px">
             <el-form-item label="QC 类型">
               <el-input v-model="qcForm.qcType" />
@@ -136,6 +157,7 @@
 import dayjs from 'dayjs'
 import {
   LimsWorkflowApi,
+  type LimsTaskQualityGateVO,
   type LimsTaskQcRecordPayload,
   type LimsTaskRawRecordPayload,
   type LimsTaskVO
@@ -160,6 +182,7 @@ const loading = ref(false)
 const submitting = ref(false)
 const activeTab = ref<'raw' | 'qc'>('raw')
 const taskDetail = ref<LimsTaskVO>()
+const qualityGate = ref<LimsTaskQualityGateVO>()
 
 const rawForm = reactive<LimsTaskRawRecordPayload>({
   taskId: undefined,
@@ -191,6 +214,21 @@ const drawerTitle = computed(() =>
 
 const prettyDefaultJson = (value: unknown) => JSON.stringify(value, null, 2)
 
+const asArray = (value?: unknown) => (Array.isArray(value) ? value : [])
+
+const valueOf = (row: Record<string, any>, keys: string[]) => {
+  for (const key of keys) {
+    const value = row?.[key]
+    if (value !== undefined && value !== null && value !== '') {
+      return value
+    }
+  }
+  return ''
+}
+
+const configuredResultFields = computed(() => asArray(qualityGate.value?.resultFields))
+const configuredQcRules = computed(() => asArray(qualityGate.value?.qcRules))
+
 const normalizeJson = (value?: string) => {
   if (!value) {
     throw new Error('JSON 内容不能为空')
@@ -199,13 +237,27 @@ const normalizeJson = (value?: string) => {
 }
 
 const resetRawForm = (task: LimsTaskVO) => {
+  const resultValues = configuredResultFields.value.map((field) => ({
+    fieldCode: valueOf(field, ['fieldCode', 'code']),
+    fieldName: valueOf(field, ['fieldName', 'name']),
+    fieldType: valueOf(field, ['fieldType', 'type']),
+    fieldValue: null,
+    unit: valueOf(field, ['unit'])
+  }))
   rawForm.taskId = task.id
   rawForm.recordType = 'instrument'
   rawForm.recordJson = prettyDefaultJson({
     taskNo: task.taskNo,
     testItem: task.testItem,
     capturedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-    measurements: [{ name: 'result', value: null, unit: '' }]
+    measurements: resultValues.length > 0
+      ? resultValues.map((field) => ({
+          fieldCode: field.fieldCode,
+          name: field.fieldName || field.fieldCode,
+          value: null,
+          unit: field.unit
+        }))
+      : [{ name: 'result', value: null, unit: '' }]
   })
   rawForm.attachmentUrl = ''
   rawForm.versionNo = 1
@@ -215,16 +267,26 @@ const resetRawForm = (task: LimsTaskVO) => {
   rawForm.resultValue = task.resultValue || ''
   rawForm.resultUnit = task.resultUnit || ''
   rawForm.resultConclusion = task.resultConclusion || 'pass'
-  rawForm.rawData = task.rawData || prettyDefaultJson({ resultValues: [] })
+  rawForm.rawData = task.rawData || prettyDefaultJson({ resultValues })
 }
 
 const resetQcForm = (task: LimsTaskVO) => {
+  const ruleCodes = configuredQcRules.value
+    .map((rule) => valueOf(rule, ['ruleCode', 'code']))
+    .filter(Boolean)
   qcForm.taskId = task.id
   qcForm.qcType = 'routine_qc'
-  qcForm.qcRuleSnapshot = prettyDefaultJson(parseOrFallback(task.methodSnapshot, { rules: [] }))
+  qcForm.qcRuleSnapshot = prettyDefaultJson(
+    qualityGate.value?.qcRuleSnapshot || {
+      source: 'task_method_snapshot',
+      methodSnapshot: parseOrFallback(task.methodSnapshot, {}),
+      rules: []
+    }
+  )
   qcForm.qcDataJson = prettyDefaultJson({
     taskNo: task.taskNo,
     checkedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+    ruleCodes,
     observations: []
   })
   qcForm.qcResult = 'approved'
@@ -244,6 +306,14 @@ const parseOrFallback = (value: string | undefined, fallback: Record<string, unk
 
 const reloadTask = async (taskId: number) => {
   taskDetail.value = await LimsWorkflowApi.getTask(taskId)
+}
+
+const reloadQualityGate = async (taskId: number) => {
+  try {
+    qualityGate.value = await LimsWorkflowApi.getTaskQualityGate(taskId)
+  } catch {
+    qualityGate.value = undefined
+  }
 }
 
 const submitRaw = async () => {
@@ -295,6 +365,7 @@ const open = async (task: LimsTaskVO, mode: 'raw' | 'qc' = 'raw') => {
   loading.value = true
   try {
     await reloadTask(task.id!)
+    await reloadQualityGate(task.id!)
     resetRawForm(taskDetail.value!)
     resetQcForm(taskDetail.value!)
   } finally {

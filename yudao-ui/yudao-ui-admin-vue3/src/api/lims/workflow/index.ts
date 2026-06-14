@@ -206,6 +206,45 @@ export interface LimsExecutionPlanVO {
   createTime?: string
 }
 
+export interface LimsTaskQualityGateVO {
+  taskId?: number
+  requestId?: number
+  taskNo?: string
+  taskName?: string
+  testItem?: string
+  methodCode?: string
+  methodName?: string
+  requestNo?: string
+  domainCode?: string
+  domainPackCode?: string
+  domainPackVersion?: string
+  workflowSnapshotHash?: string
+  executionPlanStatus?: string
+  sampleRequirements?: Record<string, any>[]
+  resultFields?: Record<string, any>[]
+  qcRules?: Record<string, any>[]
+  evidenceRequirements?: Record<string, any>[]
+  reportSections?: Record<string, any>[]
+  templateCodes?: any[]
+  sectionRules?: Record<string, any>[]
+  dataBindings?: Record<string, any>[]
+  reportDraftPlan?: Record<string, any>
+  qcRuleSnapshot?: Record<string, any>
+  taskStatus?: string
+  scheduleStatus?: string
+  qcStatus?: string
+  reviewStatus?: string
+  reportEligible?: boolean
+  blockReason?: string
+  readinessSnapshot?: string
+  equipmentSnapshot?: string
+  equipmentEvidenceSnapshot?: string
+  personnelSnapshot?: string
+  personnelEvidenceSnapshot?: string
+  hasEquipmentEvidence?: boolean
+  hasPersonnelEvidence?: boolean
+}
+
 export const LimsWorkflowApi = {
   page: async (baseUrl: string, params: any) => request.get({ url: baseUrl + '/page', params }),
   get: async (baseUrl: string, id: number) => request.get({ url: baseUrl + '/get', params: { id } }),
@@ -220,6 +259,8 @@ export const LimsWorkflowApi = {
   getTaskPage: async (params: LimsTaskPageReqVO) =>
     request.get<PageResult<LimsTaskVO[]>>({ url: '/lims/task/page', params }),
   getTask: async (id: number) => request.get<LimsTaskVO>({ url: '/lims/task/get', params: { id } }),
+  getTaskQualityGate: async (id: number) =>
+    request.get<LimsTaskQualityGateVO>({ url: '/lims/task/quality-gate', params: { id } }),
   scheduleTask: async (data: LimsTaskSchedulePayload) =>
     request.post<number>({ url: '/lims/task/schedule', data }),
   scheduleDefaultTask: async (id: number) =>
