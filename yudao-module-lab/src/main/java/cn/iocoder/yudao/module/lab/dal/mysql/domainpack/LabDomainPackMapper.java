@@ -25,4 +25,10 @@ public interface LabDomainPackMapper extends BaseMapperX<LabDomainPackDO> {
         return selectOne(LabDomainPackDO::getPackCode, packCode);
     }
 
+    default LabDomainPackDO selectByPackCodeAndVersion(String packCode, String packVersion) {
+        return selectOne(new LambdaQueryWrapperX<LabDomainPackDO>()
+                .eq(LabDomainPackDO::getPackCode, packCode)
+                .eq(LabDomainPackDO::getPackVersion, packVersion));
+    }
+
 }

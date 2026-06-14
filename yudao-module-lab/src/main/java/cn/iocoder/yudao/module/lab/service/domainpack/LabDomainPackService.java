@@ -12,6 +12,12 @@ public interface LabDomainPackService {
 
     void updateDomainPack(@Valid LabDomainPackSaveReqVO updateReqVO);
 
+    void publishDomainPack(Long id);
+
+    Long copyDomainPackVersion(Long id, String targetVersion);
+
+    void archiveDomainPack(Long id);
+
     void deleteDomainPack(Long id);
 
     LabDomainPackDO getDomainPack(Long id);

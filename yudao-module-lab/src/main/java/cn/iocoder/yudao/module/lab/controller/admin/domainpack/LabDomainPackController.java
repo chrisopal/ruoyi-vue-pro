@@ -42,6 +42,30 @@ public class LabDomainPackController {
         return success(true);
     }
 
+    @PostMapping("/{id}/publish")
+    @Operation(summary = "发布检测方案包")
+    @PreAuthorize("@ss.hasPermission('lab:domain-pack:update')")
+    public CommonResult<Boolean> publishDomainPack(@PathVariable("id") Long id) {
+        domainPackService.publishDomainPack(id);
+        return success(true);
+    }
+
+    @PostMapping("/{id}/copy-version")
+    @Operation(summary = "复制检测方案包为新草稿版本")
+    @PreAuthorize("@ss.hasPermission('lab:domain-pack:create')")
+    public CommonResult<Long> copyDomainPackVersion(@PathVariable("id") Long id,
+                                                    @RequestParam("targetVersion") String targetVersion) {
+        return success(domainPackService.copyDomainPackVersion(id, targetVersion));
+    }
+
+    @PostMapping("/{id}/archive")
+    @Operation(summary = "归档检测方案包")
+    @PreAuthorize("@ss.hasPermission('lab:domain-pack:update')")
+    public CommonResult<Boolean> archiveDomainPack(@PathVariable("id") Long id) {
+        domainPackService.archiveDomainPack(id);
+        return success(true);
+    }
+
     @DeleteMapping("/delete")
     @Operation(summary = "删除检测方案包")
     @PreAuthorize("@ss.hasPermission('lab:domain-pack:delete')")

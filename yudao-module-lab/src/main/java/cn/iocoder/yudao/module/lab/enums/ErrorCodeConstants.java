@@ -24,5 +24,8 @@ public interface ErrorCodeConstants {
     ErrorCode STANDARD_CLAUSE_CODE_DUPLICATE = new ErrorCode(1_050_001_011, "同一标准下条款编码已存在");
     ErrorCode REVIEW_BATCH_CODE_DUPLICATE = new ErrorCode(1_050_001_012, "评审批次编码已存在");
     ErrorCode REVIEW_ITEM_NOT_EXISTS = new ErrorCode(1_050_001_013, "评审材料条目不存在");
+    ErrorCode DOMAIN_PACK_PUBLISHED_IMMUTABLE = new ErrorCode(1_050_001_014, "检测方案包已发布或归档，不能原地修改");
+    ErrorCode DOMAIN_PACK_VERSION_DUPLICATE = new ErrorCode(1_050_001_015, "检测方案包编码和版本已存在");
+    ErrorCode DOMAIN_PACK_STATUS_INVALID = new ErrorCode(1_050_001_016, "检测方案包状态不允许当前操作");
 
 }
