@@ -1923,6 +1923,183 @@ SET `workflow_schema` = JSON_OBJECT(
     `status` = 'published'
 WHERE `pack_code` = 'INDUSTRIAL_RELIABILITY_V1' AND `tenant_id` = 1 AND `deleted` = b'0';
 
+INSERT INTO `lab_pack_workflow_node` (`domain_pack_id`, `node_code`, `node_name`, `role_name`, `required_flag`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`node_code`, d.`node_name`, d.`role_name`, d.`required_flag`, d.`sort`, 'active', '方向包发布版结构化流程节点', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'request_accept' AS `node_code`, '需求受理' AS `node_name`, '业务受理' AS `role_name`, b'1' AS `required_flag`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'sample_receive', '样品接收', '样品管理员', b'1', 20
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'task_execute', '任务执行', '检测员', b'1', 30
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'technical_review', '技术复核', '技术负责人', b'1', 40
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'report_issue', '报告签发', '授权签字人', b'1', 50
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'request_accept', '需求受理', '业务受理', b'1', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'field_sampling', '现场采样', '采样员', b'1', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'task_execute', '任务执行', '检测员', b'1', 30
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'technical_review', '技术复核', '技术负责人', b'1', 40
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'report_issue', '报告签发', '授权签字人', b'1', 50
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'request_accept', '需求受理', '业务受理', b'1', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'sample_receive', '样品接收', '样品管理员', b'1', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'equipment_prepare', '设备准备', '设备管理员', b'1', 30
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'task_execute', '任务执行', '检测员', b'1', 40
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'report_issue', '报告签发', '授权签字人', b'1', 50
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_workflow_node`
+    WHERE `domain_pack_id` = p.`id` AND `node_code` = d.`node_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_sample_requirement` (`domain_pack_id`, `requirement_code`, `requirement_name`, `requirement_type`, `requirement_text`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`requirement_code`, d.`requirement_name`, d.`requirement_type`, d.`requirement_text`, d.`sort`, 'active', '方向包发布版样品要求', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'FOOD_SAMPLE_QTY' AS `requirement_code`, '样品量' AS `requirement_name`, 'quantity' AS `requirement_type`, '不少于 500g，预包装食品保留原包装。' AS `requirement_text`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'FOOD_STORAGE', '储存条件', 'storage', '按样品标签或客户要求冷藏/常温保存。', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_POINT_INFO', '采样点位', 'sampling', '记录采样点位、采样时间和现场环境条件。', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_CONTAINER', '采样容器', 'container', '按检测项目选择洁净容器并完成现场固定。', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_SAMPLE_SPEC', '样品规格', 'specification', '记录规格型号、批次、数量和外观状态。', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_PRECONDITION', '预处理条件', 'precondition', '按方法要求完成恒温、老化或状态调节。', 20
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_sample_requirement`
+    WHERE `domain_pack_id` = p.`id` AND `requirement_code` = d.`requirement_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_test_item` (`domain_pack_id`, `item_code`, `item_name`, `method_code`, `method_name`, `standard_code`, `result_unit`, `demo_value`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`item_code`, d.`item_name`, d.`method_code`, d.`method_name`, d.`standard_code`, d.`result_unit`, d.`demo_value`, d.`sort`, 'active', '方向包发布版检测项目', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'FOOD_SENSE' AS `item_code`, '感官检查' AS `item_name`, 'FOOD-SENSE' AS `method_code`, '食品感官检查' AS `method_name`, 'GB 5009.237' AS `standard_code`, '' AS `result_unit`, '符合' AS `demo_value`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'FOOD_MOISTURE', '水分', 'GB5009.3', '食品中水分测定', 'GB 5009.3', '%', '12.5', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_PH', 'pH', 'HJ-1147', '水质 pH 测定', 'HJ 1147', '', '7.2', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_COD', 'COD', 'HJ-828', '化学需氧量测定', 'HJ 828', 'mg/L', '24', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_DIM', '尺寸检查', 'DIM', '尺寸测量', 'GB/T 3177', 'mm', '10.02', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_REL', '可靠性试验', 'REL', '可靠性试验方法', 'GB/T 2423', '', '通过', 20
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_test_item`
+    WHERE `domain_pack_id` = p.`id` AND `item_code` = d.`item_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_result_field` (`domain_pack_id`, `item_code`, `field_code`, `field_name`, `field_type`, `unit`, `required_flag`, `min_value`, `max_value`, `enum_options`, `demo_value`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`item_code`, d.`field_code`, d.`field_name`, d.`field_type`, d.`unit`, d.`required_flag`, d.`min_value`, d.`max_value`, d.`enum_options`, d.`demo_value`, d.`sort`, 'active', '方向包发布版结果字段', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'FOOD_SENSE' AS `item_code`, 'SENSE_RESULT' AS `field_code`, '感官结论' AS `field_name`, 'text' AS `field_type`, '' AS `unit`, b'1' AS `required_flag`, NULL AS `min_value`, NULL AS `max_value`, NULL AS `enum_options`, '符合' AS `demo_value`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'FOOD_MOISTURE', 'MOISTURE_VALUE', '水分含量', 'number', '%', b'1', '0', '100', NULL, '12.5', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_PH', 'PH_VALUE', 'pH 值', 'number', '', b'1', '0', '14', NULL, '7.2', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_COD', 'COD_VALUE', 'COD', 'number', 'mg/L', b'1', '0', NULL, NULL, '24', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_DIM', 'DIM_VALUE', '尺寸测量值', 'number', 'mm', b'1', '0', NULL, NULL, '10.02', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_REL', 'REL_RESULT', '试验结论', 'text', '', b'1', NULL, NULL, JSON_ARRAY('通过', '不通过'), '通过', 20
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_result_field`
+    WHERE `domain_pack_id` = p.`id` AND `field_code` = d.`field_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_qc_rule` (`domain_pack_id`, `rule_code`, `rule_name`, `rule_type`, `rule_expression`, `acceptance_criteria`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`rule_code`, d.`rule_name`, d.`rule_type`, d.`rule_expression`, d.`acceptance_criteria`, d.`sort`, 'active', '方向包发布版质控规则', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'FOOD_BATCH_QC' AS `rule_code`, '食品批次质控' AS `rule_name`, 'batch' AS `rule_type`, 'qcResult == approved' AS `rule_expression`, '每个任务提交通过的批次质控记录。' AS `acceptance_criteria`, 10 AS `sort`
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_FIELD_BLANK', '现场空白/平行样质控', 'batch', 'qcResult == approved', '环境检测批次应记录并通过现场质控。', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_EQUIPMENT_CHECK', '设备状态确认', 'equipment', 'qcResult == approved', '试验前确认设备状态、工装和条件满足方法要求。', 10
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_qc_rule`
+    WHERE `domain_pack_id` = p.`id` AND `rule_code` = d.`rule_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_report_section` (`domain_pack_id`, `section_code`, `section_name`, `source_type`, `visible_flag`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`section_code`, d.`section_name`, d.`source_type`, d.`visible_flag`, d.`sort`, 'active', '方向包发布版报告章节', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'basicInfo' AS `section_code`, '基本信息' AS `section_name`, 'request' AS `source_type`, b'1' AS `visible_flag`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'sampleInfo', '样品信息', 'sample', b'1', 20
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'resultTable', '检测结果', 'result_values', b'1', 30
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'equipmentTrace', '设备溯源', 'equipment_evidence', b'1', 40
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'conclusion', '结论', 'report', b'1', 50
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'samplingInfo', '采样信息', 'sample', b'1', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'environmentTrace', '环境记录', 'environment_record', b'1', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'resultTable', '检测结果', 'result_values', b'1', 30
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'equipmentTrace', '设备溯源', 'equipment_evidence', b'1', 40
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'conclusion', '结论', 'report', b'1', 50
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'equipmentTrace', '设备溯源', 'equipment_evidence', b'1', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'resultTable', '检测结果', 'result_values', b'1', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'deviation', '偏离说明', 'review', b'1', 30
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'conclusion', '结论', 'report', b'1', 40
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_report_section`
+    WHERE `domain_pack_id` = p.`id` AND `section_code` = d.`section_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_pack_evidence_requirement` (`domain_pack_id`, `requirement_code`, `requirement_name`, `evidence_type`, `source_type`, `clause_category`, `required_flag`, `sort`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT p.`id`, d.`requirement_code`, d.`requirement_name`, d.`evidence_type`, d.`source_type`, d.`clause_category`, d.`required_flag`, d.`sort`, 'active', '方向包发布版证据要求', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_domain_pack` p
+JOIN (
+  SELECT 'FOOD_ROUTINE_V1' AS `pack_code`, 'FOOD_RAW_RECORD' AS `requirement_code`, '原始记录' AS `requirement_name`, 'RAW_DATA' AS `evidence_type`, 'raw_record' AS `source_type`, 'technical_record' AS `clause_category`, b'1' AS `required_flag`, 10 AS `sort`
+  UNION ALL SELECT 'FOOD_ROUTINE_V1', 'FOOD_EQUIPMENT_CAL', '设备校准证据', 'EQUIPMENT_CALIBRATION', 'equipment', 'equipment', b'1', 20
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_RAW_RECORD', '原始记录', 'RAW_DATA', 'raw_record', 'technical_record', b'1', 10
+  UNION ALL SELECT 'ENVIRONMENT_ROUTINE_V1', 'ENV_EQUIPMENT_CAL', '设备校准证据', 'EQUIPMENT_CALIBRATION', 'equipment', 'equipment', b'1', 20
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_RAW_RECORD', '原始记录', 'RAW_DATA', 'raw_record', 'technical_record', b'1', 10
+  UNION ALL SELECT 'INDUSTRIAL_RELIABILITY_V1', 'IND_EQUIPMENT_CAL', '设备校准证据', 'EQUIPMENT_CALIBRATION', 'equipment', 'equipment', b'1', 20
+) d ON d.`pack_code` = p.`pack_code`
+WHERE p.`tenant_id` = 1 AND p.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_pack_evidence_requirement`
+    WHERE `domain_pack_id` = p.`id` AND `requirement_code` = d.`requirement_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_equipment_asset` (`equipment_code`, `equipment_name`, `equipment_type`, `manufacturer`, `model`, `serial_no`, `lab_area`, `domain_code`, `capability_scope`, `responsible_user_id`, `calibration_valid_until`, `status`, `iot_enabled`, `iot_product_id`, `iot_device_id`, `data_source_type`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT d.`equipment_code`, d.`equipment_name`, d.`equipment_type`, d.`manufacturer`, d.`model`, d.`serial_no`, d.`lab_area`, d.`domain_code`, d.`capability_scope`, d.`responsible_user_id`, d.`calibration_valid_until`, 'enabled', d.`iot_enabled`, d.`iot_product_id`, d.`iot_device_id`, d.`data_source_type`, d.`remark`, 'admin', NOW(), '', NOW(), b'0', 1
+FROM (
+  SELECT 'FOOD-PH-001' AS `equipment_code`, '食品理化酸度计' AS `equipment_name`, 'instrument' AS `equipment_type`, 'SeedLab' AS `manufacturer`, 'PH-900' AS `model`, 'SN-FOOD-PH-001' AS `serial_no`, '食品理化实验室' AS `lab_area`, 'FOOD' AS `domain_code`, 'FOOD,感官检查,水分,pH,食品理化' AS `capability_scope`, 1 AS `responsible_user_id`, DATE_ADD(CURDATE(), INTERVAL 365 DAY) AS `calibration_valid_until`, b'0' AS `iot_enabled`, NULL AS `iot_product_id`, NULL AS `iot_device_id`, 'manual' AS `data_source_type`, '一期设备主档种子：用于 LIMS 任务设备绑定和设备证据链验证。' AS `remark`
+) d
+WHERE NOT EXISTS (
+  SELECT 1 FROM `lab_equipment_asset`
+  WHERE `equipment_code` = d.`equipment_code` AND `tenant_id` = 1 AND `deleted` = b'0'
+);
+
+INSERT INTO `lab_equipment_traceability` (`equipment_id`, `traceability_type`, `certificate_no`, `calibration_org`, `calibration_date`, `valid_to`, `result`, `uncertainty`, `traceability_chain`, `certificate_file_url`, `next_due_date`, `status`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT e.`id`, 'calibration', 'CERT-FOOD-PH-001', '系统种子计量机构', DATE_FORMAT(CURDATE(), '%Y-%m-%d'), DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 365 DAY), '%Y-%m-%d'), '合格', 'U=0.02pH', '国家计量基准 -> 省级计量机构 -> 实验室设备', '/lab/certificates/CERT-FOOD-PH-001.pdf', DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 330 DAY), '%Y-%m-%d'), 'valid', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_equipment_asset` e
+WHERE e.`equipment_code` = 'FOOD-PH-001' AND e.`tenant_id` = 1 AND e.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_equipment_traceability`
+    WHERE `equipment_id` = e.`id` AND `certificate_no` = 'CERT-FOOD-PH-001' AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_evidence_object` (`evidence_code`, `evidence_name`, `evidence_type`, `source_object`, `source_object_id`, `source_object_no`, `business_domain`, `file_url`, `file_name`, `file_format`, `evidence_hash`, `issued_by`, `issued_at`, `valid_from`, `valid_to`, `status`, `summary`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT CONCAT('OBJ-EQUIPMENT-CAL-', e.`equipment_code`), CONCAT('设备校准证书-', e.`equipment_code`), 'EQUIPMENT_CERTIFICATE', 'lab_equipment_traceability', t.`id`, t.`certificate_no`, 'equipment', t.`certificate_file_url`, t.`certificate_no`, 'pdf', SHA2(CONCAT(e.`equipment_code`, '|', t.`certificate_no`, '|', t.`valid_to`), 256), t.`calibration_org`, STR_TO_DATE(t.`calibration_date`, '%Y-%m-%d'), STR_TO_DATE(t.`calibration_date`, '%Y-%m-%d'), STR_TO_DATE(t.`valid_to`, '%Y-%m-%d'), 'effective', '设备校准证书支撑设备计量溯源要求', '由设备主档种子自动生成', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_equipment_asset` e
+JOIN `lab_equipment_traceability` t ON t.`equipment_id` = e.`id` AND t.`certificate_no` = 'CERT-FOOD-PH-001' AND t.`tenant_id` = 1 AND t.`deleted` = b'0'
+WHERE e.`equipment_code` = 'FOOD-PH-001' AND e.`tenant_id` = 1 AND e.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_evidence_object`
+    WHERE `evidence_code` = CONCAT('OBJ-EQUIPMENT-CAL-', e.`equipment_code`) AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_evidence_link` (`evidence_object_id`, `evidence_code`, `evidence_name`, `evidence_url`, `evidence_hash`, `source_object`, `source_object_id`, `source_object_no`, `linked_biz_type`, `linked_biz_id`, `linked_biz_no`, `clause_id`, `clause_category`, `link_status`, `link_reason`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT o.`id`, o.`evidence_code`, o.`evidence_name`, o.`file_url`, o.`evidence_hash`, o.`source_object`, o.`source_object_id`, o.`source_object_no`, 'equipment_asset', e.`id`, e.`equipment_code`, c.`id`, 'equipment', 'linked', '设备校准证书支撑 CNAS/CMA 设备溯源条款', '设备证据链最小闭环种子', 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_evidence_object` o
+JOIN `lab_equipment_asset` e ON e.`equipment_code` = 'FOOD-PH-001' AND e.`tenant_id` = 1 AND e.`deleted` = b'0'
+LEFT JOIN (
+  SELECT MIN(`id`) AS `id`
+  FROM `lab_standard_clause`
+  WHERE `clause_category` = 'equipment' AND `tenant_id` = 1 AND `deleted` = b'0'
+) c ON 1 = 1
+WHERE o.`evidence_code` = CONCAT('OBJ-EQUIPMENT-CAL-', e.`equipment_code`) AND o.`tenant_id` = 1 AND o.`deleted` = b'0'
+  AND NOT EXISTS (
+    SELECT 1 FROM `lab_evidence_link`
+    WHERE `evidence_object_id` = o.`id` AND `linked_biz_type` = 'equipment_asset' AND `linked_biz_id` = e.`id` AND `tenant_id` = 1 AND `deleted` = b'0'
+  );
+
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '检测业务', '', 1, 20, @lab_root_menu_id, 'business', 'ep:operation', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
@@ -2381,3 +2558,30 @@ SET `visible` = b'0',
     `update_time` = NOW()
 WHERE `deleted` = b'0'
   AND (`name` = 'OA 示例' OR `component` = 'bpm/oa/leave/index');
+
+-- 授权超级管理员操作实验室平台菜单，保证全量 SQL 导入后可直接验证 LAB/LIMS 闭环。
+INSERT INTO `system_role_menu` (`role_id`, `menu_id`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT DISTINCT r.`id`, m.`id`, 'admin', NOW(), '', NOW(), b'0', r.`tenant_id`
+FROM `system_role` r
+JOIN `system_menu` root ON root.`name` = '实验室平台' AND root.`path` = '/lab' AND root.`deleted` = b'0'
+JOIN `system_menu` m ON m.`deleted` = b'0'
+LEFT JOIN `system_menu` p1 ON p1.`id` = m.`parent_id` AND p1.`deleted` = b'0'
+LEFT JOIN `system_menu` p2 ON p2.`id` = p1.`parent_id` AND p2.`deleted` = b'0'
+LEFT JOIN `system_menu` p3 ON p3.`id` = p2.`parent_id` AND p3.`deleted` = b'0'
+LEFT JOIN `system_menu` p4 ON p4.`id` = p3.`parent_id` AND p4.`deleted` = b'0'
+WHERE r.`code` = 'super_admin'
+  AND r.`tenant_id` = 1
+  AND r.`deleted` = b'0'
+  AND (
+    m.`id` = root.`id`
+    OR p1.`id` = root.`id`
+    OR p2.`id` = root.`id`
+    OR p3.`id` = root.`id`
+    OR p4.`id` = root.`id`
+    OR m.`permission` LIKE 'lab:%'
+    OR m.`permission` LIKE 'lims:%'
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM `system_role_menu`
+    WHERE `role_id` = r.`id` AND `menu_id` = m.`id` AND `tenant_id` = r.`tenant_id` AND `deleted` = b'0'
+  );
