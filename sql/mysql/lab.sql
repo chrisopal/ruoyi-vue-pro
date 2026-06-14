@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `lab_domain_pack` (
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE KEY `uk_lab_domain_pack_code_tenant_deleted` (`pack_code`, `tenant_id`, `deleted`) USING BTREE,
+  UNIQUE KEY `uk_lab_domain_pack_code_version_tenant_deleted` (`pack_code`, `pack_version`, `tenant_id`, `deleted`) USING BTREE,
   KEY `idx_lab_domain_pack_domain` (`domain_id`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室检测方案包配置';
 
@@ -348,6 +348,70 @@ CREATE TABLE IF NOT EXISTS `lab_pack_report_section` (
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_lab_pack_report_section_pack` (`domain_pack_id`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '方案包报告章节配置';
+
+CREATE TABLE IF NOT EXISTS `lab_pack_sample_requirement` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `domain_pack_id` bigint NOT NULL COMMENT '检测方案包编号',
+  `requirement_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '样品要求编码',
+  `requirement_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '样品要求名称',
+  `requirement_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '要求类型',
+  `requirement_text` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '要求内容',
+  `sort` int NOT NULL DEFAULT 0 COMMENT '排序',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active' COMMENT '状态',
+  `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lab_pack_sample_requirement_pack` (`domain_pack_id`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '方案包样品要求配置';
+
+CREATE TABLE IF NOT EXISTS `lab_pack_qc_rule` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `domain_pack_id` bigint NOT NULL COMMENT '检测方案包编号',
+  `rule_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '质控规则编码',
+  `rule_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '质控规则名称',
+  `rule_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '规则类型',
+  `rule_expression` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '规则表达式',
+  `acceptance_criteria` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '接收准则',
+  `sort` int NOT NULL DEFAULT 0 COMMENT '排序',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active' COMMENT '状态',
+  `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lab_pack_qc_rule_pack` (`domain_pack_id`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '方案包质控规则配置';
+
+CREATE TABLE IF NOT EXISTS `lab_pack_evidence_requirement` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `domain_pack_id` bigint NOT NULL COMMENT '检测方案包编号',
+  `requirement_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据要求编码',
+  `requirement_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据要求名称',
+  `evidence_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '证据类型',
+  `source_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '来源类型',
+  `clause_category` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '条款类别',
+  `required_flag` bit(1) NOT NULL DEFAULT b'1' COMMENT '是否必需',
+  `sort` int NOT NULL DEFAULT 0 COMMENT '排序',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active' COMMENT '状态',
+  `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lab_pack_evidence_requirement_pack` (`domain_pack_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_pack_evidence_requirement_type` (`evidence_type`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '方案包证据要求配置';
 
 INSERT INTO `system_dict_type` (`name`, `type`, `status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `deleted_time`)
 SELECT '实验室领域状态', 'lab_domain_status', 0, '实验室检测领域启用状态', 'admin', NOW(), '', NOW(), b'0', NULL
@@ -1523,6 +1587,23 @@ CREATE TABLE IF NOT EXISTS `lims_test_request` (
   KEY `idx_lims_test_request_source` (`request_source_type`, `tenant_id`, `deleted`) USING BTREE,
   KEY `idx_lims_test_request_pack` (`domain_pack_id`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测需求';
+
+CREATE TABLE IF NOT EXISTS `lims_execution_plan` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `request_id` bigint NOT NULL COMMENT '检测需求编号',
+  `workflow_snapshot_hash` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '方向包冻结快照哈希',
+  `plan_json` json NULL COMMENT '执行计划 JSON',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'generated' COMMENT '状态',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_lims_execution_plan_request_tenant_deleted` (`request_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_execution_plan_hash` (`workflow_snapshot_hash`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS执行计划';
 
 CREATE TABLE IF NOT EXISTS `lims_sample` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
