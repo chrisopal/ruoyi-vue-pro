@@ -33,10 +33,10 @@ const fields = computed(() => [
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
 ])
 const rowActions = [
-  { label: '提交', url: '/lims/request/submit', method: 'put' },
-  { label: '受理', url: '/lims/request/accept', method: 'put' },
-  { label: '生成任务', url: '/lims/request/generate-tasks', method: 'post' },
-  { label: '生成报告', url: '/lims/request/generate-report', method: 'post' }
+  { label: '提交', url: '/lims/request/submit', method: 'put', permission: 'lims:request:update' },
+  { label: '受理', url: '/lims/request/accept', method: 'put', permission: 'lims:request:update' },
+  { label: '生成任务', url: '/lims/request/generate-tasks', method: 'post', permission: 'lims:request:update' },
+  { label: '生成报告', url: '/lims/request/generate-report', method: 'post', permission: 'lims:report:create' }
 ] as const
 
 onMounted(async () => {

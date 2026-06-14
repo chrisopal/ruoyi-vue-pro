@@ -30,6 +30,6 @@ const fields = [
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
 ]
 const rowActions = [
-  { label: '审核通过', url: '/lims/result/approve', method: 'put' }
+  { label: '审核通过', url: '/lims/result/approve', method: 'put', permission: 'lims:result:update' }
 ] as const
 </script>

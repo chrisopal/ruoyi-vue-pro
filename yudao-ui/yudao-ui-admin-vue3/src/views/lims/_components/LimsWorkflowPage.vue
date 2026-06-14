@@ -44,7 +44,7 @@
             </el-tag>
             <span v-if="parseReportOutputs(scope.row[field.prop]).length === 0">-</span>
           </div>
-          <span v-else>{{ scope.row[field.prop] || '-' }}</span>
+          <span v-else>{{ formatCellValue(scope.row[field.prop]) }}</span>
         </template>
       </el-table-column>
       <el-table-column align="center" label="状态" min-width="110" prop="status">
@@ -52,7 +52,16 @@
       </el-table-column>
       <el-table-column align="center" fixed="right" label="操作" min-width="420">
         <template #default="scope">
-          <el-button v-for="action in rowActions" :key="action.label" link type="primary" @click="runAction(action, scope.row)">{{ action.label }}</el-button>
+          <el-button
+            v-for="action in rowActions"
+            :key="action.label"
+            v-hasPermi="permissionOfAction(action)"
+            link
+            type="primary"
+            @click="runAction(action, scope.row)"
+          >
+            {{ action.label }}
+          </el-button>
           <el-button v-hasPermi="permissionOf('update')" link type="primary" @click="openForm('update', scope.row.id)">编辑</el-button>
           <el-button v-hasPermi="permissionOf('delete')" link type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
         </template>
@@ -111,6 +120,7 @@ interface ActionConfig {
   label: string
   url: string
   method?: 'post' | 'put'
+  permission?: string | readonly string[]
   fields?: readonly FieldConfig[]
   formTitle?: string
   defaults?: LimsWorkflowVO | ((row: LimsWorkflowVO) => LimsWorkflowVO)
@@ -169,6 +179,14 @@ const formFields = computed(() => {
 })
 
 const permissionOf = (action: string) => [props.permission + ':' + action]
+const permissionOfAction = (action: ActionConfig) => {
+  if (Array.isArray(action.permission)) return action.permission
+  return [action.permission || props.permission + ':update']
+}
+const formatCellValue = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return '-'
+  return String(value)
+}
 const emptyForm = () => ({ status: 'draft', ...(props.defaults || {}) })
 const getList = async () => {
   loading.value = true
