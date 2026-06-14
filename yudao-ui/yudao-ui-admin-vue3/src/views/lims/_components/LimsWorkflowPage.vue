@@ -42,10 +42,10 @@
             <el-tag v-for="output in parseReportOutputs(scope.row[field.prop])" :key="output.fileUrl || output.format" size="small">
               <el-link
                 v-if="output.fileUrl"
-                :href="output.fileUrl"
+                href="#"
                 underline="never"
-                target="_blank"
                 type="primary"
+                @click.prevent="downloadReportOutput(output)"
               >
                 {{ output.format }}
               </el-link>
@@ -215,6 +215,7 @@
 <script lang="ts" setup>
 import { LimsWorkflowApi } from '@/api/lims/workflow'
 import type { LimsExecutionPlanVO, LimsWorkflowVO } from '@/api/lims/workflow'
+import { getAccessToken, getTenantId } from '@/utils/auth'
 
 defineOptions({ name: 'LimsWorkflowPage' })
 
@@ -230,7 +231,7 @@ interface ActionConfig {
   formTitle?: string
   defaults?: LimsWorkflowVO | ((row: LimsWorkflowVO) => LimsWorkflowVO)
 }
-interface ReportOutput { format?: string; fileUrl?: string; contentHash?: string }
+interface ReportOutput { format?: string; fileUrl?: string; fileName?: string; contentHash?: string }
 
 const props = defineProps<{
   title: string
@@ -406,6 +407,53 @@ const parseReportOutputs = (value: unknown): ReportOutput[] => {
   } catch {
     return []
   }
+}
+const downloadReportOutput = async (output: ReportOutput) => {
+  if (!output.fileUrl) return
+  try {
+    const response = await fetch(resolveReportOutputUrl(output.fileUrl), {
+      headers: buildReportOutputHeaders()
+    })
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.ok || contentType.includes('application/json')) {
+      const errorText = await response.text()
+      throw new Error(resolveDownloadError(errorText, response.status))
+    }
+    const blob = await response.blob()
+    saveBlob(blob, output.fileName || fileNameFromUrl(output.fileUrl) || `${output.format || 'report'}`)
+  } catch (error: any) {
+    message.error(error?.message || '报告文件下载失败')
+  }
+}
+const buildReportOutputHeaders = () => {
+  const headers: Record<string, string> = {}
+  const accessToken = getAccessToken()
+  const tenantId = getTenantId()
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+  if (tenantId) headers['tenant-id'] = String(tenantId)
+  return headers
+}
+const resolveReportOutputUrl = (fileUrl: string) => {
+  if (/^https?:\/\//i.test(fileUrl)) return fileUrl
+  const baseUrl = String(import.meta.env.VITE_BASE_URL || window.location.origin).replace(/\/$/, '')
+  return `${baseUrl}${fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`}`
+}
+const resolveDownloadError = (errorText: string, status: number) => {
+  try {
+    const data = JSON.parse(errorText)
+    return data?.msg || data?.message || `报告文件下载失败：${status}`
+  } catch {
+    return `报告文件下载失败：${status}`
+  }
+}
+const fileNameFromUrl = (fileUrl: string) => decodeURIComponent(fileUrl.split('/').filter(Boolean).pop() || '')
+const saveBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
 }
 const shortHash = (hash: string) => (hash.length > 10 ? hash.slice(0, 10) : hash)
 const parseJsonObject = (value: unknown): Record<string, any> => {
