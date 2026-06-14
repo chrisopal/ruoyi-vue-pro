@@ -40,9 +40,9 @@ const rowActions = [
 ] as const
 
 onMounted(async () => {
-  const data = await LabDomainPackApi.getDomainPackPage({ pageNo: 1, pageSize: 100, status: 'active' })
+  const data = await LabDomainPackApi.getDomainPackPage({ pageNo: 1, pageSize: 100, status: 'published' })
   packOptions.value = (data.list || []).map((item) => ({
-    label: `${item.packName}（${item.industry || item.packCode}）`,
+    label: `${item.packName} / ${item.packVersion}（${item.industry || item.packCode}）`,
     value: item.id!
   }))
 })

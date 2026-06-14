@@ -25,14 +25,29 @@
           <Icon class="mr-5px" icon="ep:copy-document" />应用模板
         </el-button>
         <el-button @click="loadExistingPack"><Icon class="mr-5px" icon="ep:refresh" />加载配置</el-button>
-        <el-button type="primary" @click="saveDesigner">
+        <el-button :disabled="isDesignerReadonly" type="primary" @click="saveDesigner">
           <Icon class="mr-5px" icon="ep:finished" />保存方向包
         </el-button>
-        <el-button type="success" @click="publishDesigner">
+        <el-button v-if="activePack?.status !== 'published'" :disabled="isDesignerReadonly" type="success" @click="publishDesigner">
           <Icon class="mr-5px" icon="ep:promotion" />发布版本
+        </el-button>
+        <el-button v-if="isDesignerReadonly" type="warning" @click="copyActivePackVersion">
+          <Icon class="mr-5px" icon="ep:copy-document" />复制新版本
         </el-button>
       </div>
     </div>
+
+    <el-alert
+      :closable="false"
+      :title="designerLifecycleTitle"
+      :type="isDesignerReadonly ? 'warning' : 'info'"
+      class="mb-16px"
+      show-icon
+    >
+      <template #default>
+        {{ designerLifecycleDescription }}
+      </template>
+    </el-alert>
 
     <el-row :gutter="16">
       <el-col :md="6" :xs="24">
@@ -67,7 +82,7 @@
   </ContentWrap>
 
   <ContentWrap>
-    <el-tabs v-model="activeTab">
+    <el-tabs v-model="activeTab" :class="{ 'designer-tabs--readonly': isDesignerReadonly }">
       <el-tab-pane label="方案包" name="pack">
         <el-form :model="packForm" label-width="112px">
           <el-row :gutter="16">
@@ -112,7 +127,7 @@
 
       <el-tab-pane label="流程节点" name="workflow">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addWorkflowNode">新增节点</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addWorkflowNode">新增节点</el-button>
         </div>
         <el-table :data="workflowNodes" row-key="nodeCode">
           <el-table-column label="排序" width="120">
@@ -142,7 +157,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeWorkflowNode(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeWorkflowNode(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -150,7 +165,7 @@
 
       <el-tab-pane label="检测项目" name="items">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addTestItem">新增项目</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addTestItem">新增项目</el-button>
         </div>
         <el-table :data="testItems" row-key="itemCode">
           <el-table-column label="项目编码" min-width="160">
@@ -190,7 +205,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeTestItem(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeTestItem(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -198,7 +213,7 @@
 
       <el-tab-pane label="结果字段" name="fields">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addResultField">新增字段</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addResultField">新增字段</el-button>
         </div>
         <el-table :data="resultFields" row-key="fieldCode">
           <el-table-column label="检测项目" min-width="170">
@@ -271,7 +286,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeResultField(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeResultField(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -279,7 +294,7 @@
 
       <el-tab-pane label="样品要求" name="sample">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addSampleRequirement">新增要求</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addSampleRequirement">新增要求</el-button>
         </div>
         <el-table :data="sampleRequirements" row-key="requirementCode">
           <el-table-column label="排序" width="120">
@@ -314,7 +329,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeSampleRequirement(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeSampleRequirement(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -322,7 +337,7 @@
 
       <el-tab-pane label="质控规则" name="qc">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addQcRule">新增规则</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addQcRule">新增规则</el-button>
         </div>
         <el-table :data="qcRules" row-key="ruleCode">
           <el-table-column label="排序" width="120">
@@ -362,7 +377,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeQcRule(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeQcRule(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -370,7 +385,7 @@
 
       <el-tab-pane label="报告章节" name="report">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addReportSection">新增章节</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addReportSection">新增章节</el-button>
         </div>
         <el-table :data="reportSections" row-key="sectionCode">
           <el-table-column label="排序" width="120">
@@ -407,7 +422,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeReportSection(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeReportSection(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -415,7 +430,7 @@
 
       <el-tab-pane label="证据要求" name="evidence">
         <div class="mb-10px flex justify-end">
-          <el-button type="primary" plain @click="addEvidenceRequirement">新增证据</el-button>
+          <el-button :disabled="isDesignerReadonly" type="primary" plain @click="addEvidenceRequirement">新增证据</el-button>
         </div>
         <el-table :data="evidenceRequirements" row-key="requirementCode">
           <el-table-column label="排序" width="120">
@@ -461,7 +476,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
-              <el-button link type="danger" @click="removeEvidenceRequirement(scope.$index)">删除</el-button>
+              <el-button :disabled="isDesignerReadonly" link type="danger" @click="removeEvidenceRequirement(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -492,6 +507,46 @@
       <el-step title="结果录入" />
       <el-step title="报告签发" />
     </el-steps>
+
+    <el-row :gutter="16" class="mt-16px">
+      <el-col :md="12" :xs="24">
+        <div class="sub-title">ExecutionPlan 预览</div>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="样品要求">{{ executionPlanPreview.sampleRequirements.length }}</el-descriptions-item>
+          <el-descriptions-item label="任务计划">{{ executionPlanPreview.taskPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="结果字段">{{ executionPlanPreview.resultFieldPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="质控规则">{{ executionPlanPreview.qcCheckPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="证据要求">{{ executionPlanPreview.evidenceRequirementPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="报告计划">已装配</el-descriptions-item>
+        </el-descriptions>
+        <el-table :data="executionPlanPreview.taskPlans" class="mt-10px" height="220" row-key="itemCode">
+          <el-table-column label="任务项目" min-width="150" prop="itemName" />
+          <el-table-column label="结果字段" min-width="120" prop="resultFieldCount" />
+          <el-table-column label="质控" min-width="120" prop="qcRuleCount" />
+          <el-table-column label="证据" min-width="120" prop="evidenceRequirementCount" />
+        </el-table>
+      </el-col>
+      <el-col :md="12" :xs="24">
+        <div class="sub-title">ReportDraftPlan 预览</div>
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="模板版本">{{ reportDraftPlanPreview.templateVersion }}</el-descriptions-item>
+          <el-descriptions-item label="输出格式">{{ reportDraftPlanPreview.outputFormats.join(' / ') }}</el-descriptions-item>
+          <el-descriptions-item label="报告章节">{{ reportDraftPlanPreview.sections.length }}</el-descriptions-item>
+          <el-descriptions-item label="数据绑定">{{ reportDraftPlanPreview.dataBindings.length }}</el-descriptions-item>
+        </el-descriptions>
+        <el-table :data="reportDraftPlanPreview.sections" class="mt-10px" height="220" row-key="sectionCode">
+          <el-table-column label="章节" min-width="160" prop="sectionName" />
+          <el-table-column label="来源" min-width="140" prop="sourceType" />
+          <el-table-column label="显示" width="90">
+            <template #default="scope">
+              <el-tag :type="scope.row.visible ? 'success' : 'info'">
+                {{ scope.row.visible ? '显示' : '隐藏' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-col>
+    </el-row>
 
     <el-row :gutter="16" class="mt-16px">
       <el-col :md="10" :xs="24">
@@ -846,7 +901,9 @@ const scenarioTemplates: ScenarioTemplate[] = [
   }
 ]
 
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value))
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
+}
 const defaultTemplate = scenarioTemplates[0]
 
 const message = useMessage()
@@ -879,7 +936,56 @@ const packStatusOptions = [
 const getPackStatusLabel = (status?: string) =>
   packStatusOptions.find((item) => item.value === status)?.label || '未保存'
 
-const canEditActivePack = computed(() => !activePack.value?.status || ['draft', 'active'].includes(activePack.value.status))
+const canEditActivePack = computed(() => !activePack.value?.status || activePack.value.status === 'draft')
+const isDesignerReadonly = computed(() => Boolean(activePack.value?.status && activePack.value.status !== 'draft'))
+const designerLifecycleTitle = computed(() => {
+  if (!activePack.value?.id) return '当前配置尚未保存，保存后会形成方向包草稿版本'
+  if (activePack.value.status === 'draft') return '当前方向包为草稿版本，可继续编辑'
+  if (activePack.value.status === 'published') return '当前方向包已发布为不可变版本'
+  if (activePack.value.status === 'archived') return '当前方向包已归档，只保留历史追溯'
+  return `当前方向包状态：${getPackStatusLabel(activePack.value.status)}`
+})
+const designerLifecycleDescription = computed(() => {
+  if (!activePack.value?.id) return '配置流程、项目、样品要求、质控规则、证据要求和报告章节后，先保存为草稿，再发布给 LIMS 执行闭环使用。'
+  if (activePack.value.status === 'draft') return '草稿可以修改结构化配置；发布后 LIMS 只读取该版本的冻结快照，历史任务和报告不受后续版本影响。'
+  if (activePack.value.status === 'published') return '已发布版本不能原地修改；需要调整检测场景时，请复制为新的草稿版本再编辑和发布。'
+  if (activePack.value.status === 'archived') return '归档版本不能用于新的检测需求，但历史执行计划、报告和证据链仍按该版本追溯。'
+  return '旧状态仅用于历史数据兼容，建议复制为新的草稿版本后再维护。'
+})
+
+const reportDraftPlanPreview = computed(() => ({
+  templateVersion: packForm.packVersion,
+  outputFormats: ['WORD', 'PDF', 'EXCEL'],
+  sections: reportSections.value.map((item) => ({ ...item })),
+  dataBindings: resultFields.value.map((field) => ({
+    fieldCode: field.fieldCode,
+    fieldName: field.fieldName,
+    sourcePath: `resultValues.${field.fieldCode}`,
+    required: field.required
+  })),
+  evidenceRequirements: evidenceRequirements.value.map((item) => ({ ...item }))
+}))
+
+const executionPlanPreview = computed(() => ({
+  workflowNodes: workflowNodes.value.map((item) => ({ ...item })),
+  sampleRequirements: sampleRequirements.value.map((item) => ({ ...item })),
+  taskPlans: testItems.value.map((item) => {
+    const itemResultFields = resultFields.value.filter((field) => field.itemCode === item.itemCode)
+    return {
+      itemCode: item.itemCode,
+      itemName: item.itemName,
+      methodCode: item.methodCode,
+      resultFieldCount: itemResultFields.length,
+      qcRuleCount: qcRules.value.length,
+      evidenceRequirementCount: evidenceRequirements.value.length,
+      reportSectionCount: reportSections.value.length
+    }
+  }),
+  resultFieldPlans: resultFields.value.map((item) => ({ ...item })),
+  qcCheckPlans: qcRules.value.map((item) => ({ ...item })),
+  evidenceRequirementPlans: evidenceRequirements.value.map((item) => ({ ...item })),
+  reportDraftPlan: reportDraftPlanPreview.value
+}))
 
 const describeFieldRule = (field: ResultField) => {
   if (field.enumOptions?.length) return field.enumOptions.join(' / ')
@@ -1067,6 +1173,7 @@ const buildTemplateSchema = () => ({
     `${packForm.domainCode.toLowerCase()}_raw_record`,
     `${packForm.domainCode.toLowerCase()}_report`
   ],
+  outputFormats: reportDraftPlanPreview.value.outputFormats,
   resultFields: resultFields.value,
   reportSections: reportSections.value
 })
@@ -1150,7 +1257,7 @@ const loadExistingPack = async () => {
 
 const saveDesigner = async () => {
   if (!canEditActivePack.value) {
-    message.warning('已发布或已归档的方向包不能原地修改，请在方案包管理中复制新版本后再编辑。')
+    message.warning('已发布或已归档的方向包不能原地修改，请复制新版本后再编辑。')
     return
   }
   const domain = await getOrCreateDomain()
@@ -1179,6 +1286,52 @@ const saveDesigner = async () => {
   message.success('方向包已保存')
 }
 
+const nextDraftVersion = () => {
+  const current = packForm.packVersion || '1.0'
+  const parts = current.split('.')
+  const last = Number(parts[parts.length - 1])
+  if (!Number.isFinite(last)) {
+    return `${current}.1`
+  }
+  parts[parts.length - 1] = String(last + 1)
+  return parts.join('.')
+}
+
+const copyActivePackVersion = async () => {
+  if (!activePack.value?.id) return
+  const result = await message.prompt(`请输入新版本号，建议 ${nextDraftVersion()}`, '复制方向包版本')
+  const targetVersion = String(result.value || '').trim()
+  if (!targetVersion) return
+  const copiedId = await LabDomainPackApi.copyDomainPackVersion(activePack.value.id, targetVersion)
+  let copiedPack: LabDomainPackVO | undefined
+  if (copiedId) {
+    copiedPack = await LabDomainPackApi.getDomainPack(Number(copiedId))
+  } else {
+    const data = await LabDomainPackApi.getDomainPackPage({
+      pageNo: 1,
+      pageSize: 20,
+      packCode: packForm.packCode
+    })
+    copiedPack = (data.list || []).find((item) => item.packCode === packForm.packCode && item.packVersion === targetVersion)
+  }
+  if (!copiedPack?.id) {
+    message.warning('新版本已复制，但未能自动加载，请使用加载配置重新选择。')
+    return
+  }
+  activePack.value = copiedPack
+  Object.assign(packForm, {
+    packCode: copiedPack.packCode,
+    packName: copiedPack.packName,
+    packVersion: copiedPack.packVersion,
+    industry: copiedPack.industry || packForm.industry,
+    applicationScope: copiedPack.applicationScope || packForm.applicationScope
+  })
+  await applyLoadedPackConfig(copiedPack.id)
+  activeStep.value = 1
+  auditLogs.value.unshift(`${packForm.packName} 已复制为 ${targetVersion} 草稿版本`)
+  message.success('已复制为新的草稿版本，可继续编辑')
+}
+
 const publishDesigner = async () => {
   if (!activePack.value?.id) {
     await saveDesigner()
@@ -1191,9 +1344,6 @@ const publishDesigner = async () => {
   if (activePack.value.status === 'archived') {
     message.warning('已归档方向包不能再次发布，请复制新版本后发布。')
     return
-  }
-  if (activePack.value.status === 'active') {
-    await saveDesigner()
   }
   await LabDomainPackApi.publishDomainPack(activePack.value.id)
   activePack.value = { ...activePack.value, status: 'published' }
@@ -1369,5 +1519,20 @@ onMounted(() => {
 .report-preview p {
   margin: 7px 0;
   color: var(--el-text-color-regular);
+}
+
+.designer-tabs--readonly :deep(.el-input__wrapper),
+.designer-tabs--readonly :deep(.el-select__wrapper),
+.designer-tabs--readonly :deep(.el-textarea__inner),
+.designer-tabs--readonly :deep(.el-input-number),
+.designer-tabs--readonly :deep(.el-switch) {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.designer-tabs--readonly :deep(.el-input__wrapper),
+.designer-tabs--readonly :deep(.el-select__wrapper),
+.designer-tabs--readonly :deep(.el-textarea__inner) {
+  background: var(--el-fill-color-lighter);
 }
 </style>

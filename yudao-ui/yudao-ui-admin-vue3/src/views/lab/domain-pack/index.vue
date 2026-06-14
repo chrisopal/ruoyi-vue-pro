@@ -176,15 +176,13 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="formData.status" class="w-1/1" placeholder="请选择状态">
-              <el-option
-                v-for="item in statusOptions"
-                :key="item.value"
-                :label="item.label"
-                :value="item.value"
-              />
-            </el-select>
+          <el-form-item label="生命周期">
+            <el-tag :type="getStatusTag(formData.status)">
+              {{ getStatusLabel(formData.status) }}
+            </el-tag>
+            <span class="ml-8px text-12px color-#909399">
+              通过发布、归档、复制版本维护
+            </span>
           </el-form-item>
         </el-col>
       </el-row>
@@ -285,7 +283,7 @@ const getStatusTag = (status: string) => {
   return statusOptions.find((item) => item.value === status)?.tag || 'info'
 }
 
-const isPackEditable = (row: LabDomainPackVO) => ['draft', 'active'].includes(row.status)
+const isPackEditable = (row: LabDomainPackVO) => row.status === 'draft'
 
 const getDomainName = (domainId: number) => {
   return domainOptions.value.find((item) => item.id === domainId)?.domainName || domainId
@@ -341,8 +339,7 @@ const formRules = reactive({
   domainId: [{ required: true, message: '检测领域不能为空', trigger: 'change' }],
   packCode: [{ required: true, message: '方案编码不能为空', trigger: 'blur' }],
   packName: [{ required: true, message: '方案名称不能为空', trigger: 'blur' }],
-  packVersion: [{ required: true, message: '方案版本不能为空', trigger: 'blur' }],
-  status: [{ required: true, message: '状态不能为空', trigger: 'change' }]
+  packVersion: [{ required: true, message: '方案版本不能为空', trigger: 'blur' }]
 })
 const formRef = ref()
 
