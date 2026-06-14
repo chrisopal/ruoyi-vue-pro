@@ -76,6 +76,7 @@ public class LimsTaskRecordService {
         record.setSubmittedTime(submittedTime);
         record.setStatus(StringUtils.hasText(reqVO.getStatus()) ? reqVO.getStatus() : "submitted");
         rawRecordMapper.insert(record);
+        syncResultFromRawRecord(task, reqVO);
 
         String reason = fallback(reqVO.getRemark(), "原始记录已提交");
         lifecycleService.transition(task.getId(), LimsTaskStatus.DATA_SUBMITTED,
@@ -127,6 +128,7 @@ public class LimsTaskRecordService {
     @Transactional(rollbackFor = Exception.class)
     public void approveReview(LimsWorkflowSaveReqVO reqVO) {
         LimsTestTaskDO task = validateTask(resolveTaskId(reqVO));
+        requireReviewer(reqVO);
         String reviewTime = now();
         String remark = fallback(reqVO.getRemark(), "技术复核通过");
         LimsTaskReviewDO review = buildReview(task, reqVO, LimsTaskReviewStatus.APPROVED, reviewTime, remark);
@@ -148,6 +150,7 @@ public class LimsTaskRecordService {
     @Transactional(rollbackFor = Exception.class)
     public void rejectReview(LimsWorkflowSaveReqVO reqVO) {
         LimsTestTaskDO task = validateTask(resolveTaskId(reqVO));
+        requireReviewer(reqVO);
         String reviewTime = now();
         String remark = fallback(reqVO.getRemark(), "技术复核驳回");
         LimsTaskReviewDO review = buildReview(task, reqVO, LimsTaskReviewStatus.REJECTED, reviewTime, remark);
@@ -183,6 +186,46 @@ public class LimsTaskRecordService {
         return review;
     }
 
+    private void syncResultFromRawRecord(LimsTestTaskDO task, LimsWorkflowSaveReqVO reqVO) {
+        boolean hasResultPayload = StringUtils.hasText(reqVO.getResultValue())
+                || StringUtils.hasText(reqVO.getResultUnit())
+                || StringUtils.hasText(reqVO.getResultConclusion())
+                || StringUtils.hasText(reqVO.getRawData());
+        if (!hasResultPayload) {
+            return;
+        }
+        validateJsonIfPresent(reqVO.getRawData(), TEST_TASK_RAW_RECORD_REQUIRED);
+        if (StringUtils.hasText(reqVO.getRawData())) {
+            qualityGateService.validateResultValues(validateRequest(task.getRequestId()), task, reqVO.getRawData());
+        }
+        List<LimsTestResultDO> results = resultMapper.selectListByTaskId(task.getId());
+        if (results.isEmpty()) {
+            LimsTestResultDO result = new LimsTestResultDO();
+            result.setRequestId(task.getRequestId());
+            result.setRequestNo(task.getRequestNo());
+            result.setSampleId(task.getSampleId());
+            result.setSampleNo(task.getSampleNo());
+            result.setTaskId(task.getId());
+            result.setTaskNo(task.getTaskNo());
+            result.setResultNo(task.getTaskNo() + "-R01");
+            result.setTestItem(task.getTestItem());
+            result.setResultValue(reqVO.getResultValue());
+            result.setResultUnit(reqVO.getResultUnit());
+            result.setResultConclusion(reqVO.getResultConclusion());
+            result.setRawData(reqVO.getRawData());
+            result.setStatus("recorded");
+            resultMapper.insert(result);
+            return;
+        }
+        UpdateWrapper<LimsTestResultDO> update = new UpdateWrapper<LimsTestResultDO>().eq("task_id", task.getId());
+        update.set(StringUtils.hasText(reqVO.getResultValue()), "result_value", reqVO.getResultValue());
+        update.set(StringUtils.hasText(reqVO.getResultUnit()), "result_unit", reqVO.getResultUnit());
+        update.set(StringUtils.hasText(reqVO.getResultConclusion()), "result_conclusion", reqVO.getResultConclusion());
+        update.set(StringUtils.hasText(reqVO.getRawData()), "raw_data", reqVO.getRawData());
+        update.set("status", "recorded");
+        resultMapper.update(null, update);
+    }
+
     private void assertQualityGateSatisfied(LimsTestTaskDO task, LimsTaskReviewDO currentReview) {
         LimsTestRequestDO request = validateRequest(task.getRequestId());
         List<LimsTaskReviewDO> reviews = new java.util.ArrayList<>(reviewMapper.selectListByTaskId(task.getId()));
@@ -203,6 +246,12 @@ public class LimsTaskRecordService {
                 .set("status", LimsTaskReviewStatus.APPROVED)
                 .set("reviewer_id", reviewerId)
                 .set("reviewed_time", reviewTime));
+    }
+
+    private void requireReviewer(LimsWorkflowSaveReqVO reqVO) {
+        if (reqVO.getReviewerId() == null) {
+            throw exception(TEST_TASK_REVIEW_REQUIRED);
+        }
     }
 
     private LimsTestTaskDO validateTask(Long taskId) {

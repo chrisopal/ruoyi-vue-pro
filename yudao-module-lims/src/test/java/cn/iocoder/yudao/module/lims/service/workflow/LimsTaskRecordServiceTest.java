@@ -78,6 +78,42 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void submitRawRecord_shouldPersistResultPayloadWhenProvided() {
+        LimsTestTaskDO task = task(10L, LimsTaskStatus.TESTING);
+        task.setRequestNo("REQ-001");
+        task.setSampleId(20L);
+        task.setSampleNo("S-001");
+        task.setTestItem("PH");
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request());
+        when(resultMapper.selectListByTaskId(10L)).thenReturn(List.of());
+        LimsWorkflowSaveReqVO req = rawReq();
+        req.setResultValue("7.10");
+        req.setResultUnit("pH");
+        req.setResultConclusion("pass");
+        req.setRawData("{\"resultValues\":[{\"fieldCode\":\"PH\",\"fieldValue\":\"7.10\"}]}");
+
+        service.submitRawRecord(req);
+
+        verify(qualityGateService).validateResultValues(argThat((LimsTestRequestDO request) -> Long.valueOf(1L).equals(request.getId())),
+                argThat((LimsTestTaskDO validatedTask) -> Long.valueOf(10L).equals(validatedTask.getId())),
+                argThat((String rawData) -> rawData.contains("\"fieldCode\":\"PH\"")));
+        verify(resultMapper).insert(argThat((LimsTestResultDO result) ->
+                Long.valueOf(1L).equals(result.getRequestId())
+                        && "REQ-001".equals(result.getRequestNo())
+                        && Long.valueOf(20L).equals(result.getSampleId())
+                        && "S-001".equals(result.getSampleNo())
+                        && Long.valueOf(10L).equals(result.getTaskId())
+                        && "REQ-001-T01-R01".equals(result.getResultNo())
+                        && "PH".equals(result.getTestItem())
+                        && "7.10".equals(result.getResultValue())
+                        && "pH".equals(result.getResultUnit())
+                        && "pass".equals(result.getResultConclusion())
+                        && "recorded".equals(result.getStatus())
+                        && result.getRawData().contains("resultValues")));
+    }
+
+    @Test
     void submitRawRecord_shouldRejectMissingRecordJsonBeforeInsert() {
         when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.TESTING));
         LimsWorkflowSaveReqVO req = rawReq();
@@ -191,6 +227,15 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void approveReview_shouldRejectMissingReviewer() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.REVIEWING));
+        LimsWorkflowSaveReqVO req = reviewReq();
+        req.setReviewerId(null);
+
+        assertThrows(Exception.class, () -> service.approveReview(req));
+    }
+
+    @Test
     void rejectReview_shouldPersistDecisionTransitionAndMarkTaskBlocked() {
         when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.REVIEWING));
 
@@ -211,6 +256,15 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
                         && LimsTaskReviewStatus.REJECTED.equals(update.getReviewStatus())
                         && Boolean.FALSE.equals(update.getReportEligible())
                         && "数据需返工".equals(update.getBlockReason())));
+    }
+
+    @Test
+    void rejectReview_shouldRejectMissingReviewer() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.REVIEWING));
+        LimsWorkflowSaveReqVO req = reviewReq();
+        req.setReviewerId(null);
+
+        assertThrows(Exception.class, () -> service.rejectReview(req));
     }
 
     @Test
