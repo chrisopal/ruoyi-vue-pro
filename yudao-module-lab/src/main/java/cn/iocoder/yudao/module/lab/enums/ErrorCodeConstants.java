@@ -29,5 +29,6 @@ public interface ErrorCodeConstants {
     ErrorCode DOMAIN_PACK_STATUS_INVALID = new ErrorCode(1_050_001_016, "检测方案包状态不允许当前操作");
     ErrorCode EQUIPMENT_ASSET_NOT_EXISTS = new ErrorCode(1_050_001_017, "设备主档不存在");
     ErrorCode EQUIPMENT_ASSET_CODE_DUPLICATE = new ErrorCode(1_050_001_018, "设备编码已存在");
+    ErrorCode EQUIPMENT_TRACEABILITY_NOT_EXISTS = new ErrorCode(1_050_001_019, "设备溯源证据不存在");
 
 }

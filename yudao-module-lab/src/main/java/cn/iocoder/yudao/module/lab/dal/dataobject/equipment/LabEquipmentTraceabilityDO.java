@@ -13,6 +13,7 @@ import lombok.EqualsAndHashCode;
 @EqualsAndHashCode(callSuper = true)
 public class LabEquipmentTraceabilityDO extends TenantBaseDO {
 
+    @TableId
     private Long id;
     private Long equipmentId;
     private String traceabilityType;

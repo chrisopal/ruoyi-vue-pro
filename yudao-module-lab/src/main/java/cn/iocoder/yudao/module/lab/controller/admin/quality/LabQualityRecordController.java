@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordPageReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordRespVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordSaveReqVO;
+import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
 import cn.iocoder.yudao.module.lab.service.quality.LabQualityRecordService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,8 @@ import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
@@ -254,6 +257,14 @@ public class LabQualityRecordController {
     @PreAuthorize("@ss.hasPermission('lab:equipment-traceability:query')")
     public CommonResult<LabQualityRecordRespVO> getEquipmentTraceability(@RequestParam("id") Long id) {
         return success(qualityRecordService.getEquipmentTraceability(id));
+    }
+
+    @GetMapping("/lab/equipment-traceability/current")
+    @Operation(summary = "获得设备当前有效校准证据")
+    @PreAuthorize("@ss.hasPermission('lab:equipment-traceability:query')")
+    public CommonResult<List<LabEquipmentCalibrationEvidenceDTO>> getCurrentEquipmentCalibrationEvidence(
+            @RequestParam("equipmentId") Long equipmentId) {
+        return success(qualityRecordService.getCurrentEquipmentCalibrationEvidence(equipmentId));
     }
 
     @PostMapping("/lab/equipment-traceability/create")

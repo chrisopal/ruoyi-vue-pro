@@ -12,7 +12,6 @@ import cn.iocoder.yudao.module.lab.dal.dataobject.compliancecheck.LabComplianceC
 import cn.iocoder.yudao.module.lab.dal.dataobject.compliancecheck.LabComplianceCheckItemDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.personnel.LabPersonnelCompetenceDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.personnel.LabPersonnelAuthorizationDO;
-import cn.iocoder.yudao.module.lab.dal.dataobject.equipment.LabEquipmentTraceabilityDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.equipment.LabEquipmentIntermediateCheckDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.environment.LabEnvironmentRecordDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.method.LabMethodValidationDO;
@@ -27,7 +26,6 @@ import cn.iocoder.yudao.module.lab.dal.mysql.compliancecheck.LabComplianceCheckM
 import cn.iocoder.yudao.module.lab.dal.mysql.compliancecheck.LabComplianceCheckItemMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.personnel.LabPersonnelCompetenceMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.personnel.LabPersonnelAuthorizationMapper;
-import cn.iocoder.yudao.module.lab.dal.mysql.equipment.LabEquipmentTraceabilityMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.equipment.LabEquipmentIntermediateCheckMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.environment.LabEnvironmentRecordMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.method.LabMethodValidationMapper;
@@ -35,6 +33,8 @@ import cn.iocoder.yudao.module.lab.dal.mysql.nonconformity.LabNonconformityMappe
 import cn.iocoder.yudao.module.lab.dal.mysql.nonconformity.LabCorrectiveActionMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.audit.LabInternalAuditMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.audit.LabManagementReviewMapper;
+import cn.iocoder.yudao.module.lab.service.equipment.LabEquipmentTraceabilityService;
+import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -59,7 +59,7 @@ public class LabQualityRecordService {
     @Resource
     private LabPersonnelAuthorizationMapper personnelAuthorizationMapper;
     @Resource
-    private LabEquipmentTraceabilityMapper equipmentTraceabilityMapper;
+    private LabEquipmentTraceabilityService equipmentTraceabilityService;
     @Resource
     private LabEquipmentIntermediateCheckMapper equipmentIntermediateCheckMapper;
     @Resource
@@ -215,29 +215,31 @@ public class LabQualityRecordService {
 
 
     public Long createEquipmentTraceability(LabQualityRecordSaveReqVO createReqVO) {
-        LabEquipmentTraceabilityDO record = BeanUtils.toBean(createReqVO, LabEquipmentTraceabilityDO.class);
-        equipmentTraceabilityMapper.insert(record);
-        return record.getId();
+        return equipmentTraceabilityService.createEquipmentTraceability(createReqVO);
     }
 
     public void updateEquipmentTraceability(LabQualityRecordSaveReqVO updateReqVO) {
-        equipmentTraceabilityMapper.updateById(BeanUtils.toBean(updateReqVO, LabEquipmentTraceabilityDO.class));
+        equipmentTraceabilityService.updateEquipmentTraceability(updateReqVO);
     }
 
     public void deleteEquipmentTraceability(Long id) {
-        equipmentTraceabilityMapper.deleteById(id);
+        equipmentTraceabilityService.deleteEquipmentTraceability(id);
     }
 
     public LabQualityRecordRespVO getEquipmentTraceability(Long id) {
-        return BeanUtils.toBean(equipmentTraceabilityMapper.selectById(id), LabQualityRecordRespVO.class);
+        return equipmentTraceabilityService.getEquipmentTraceability(id);
     }
 
     public PageResult<LabQualityRecordRespVO> getEquipmentTraceabilityPage(LabQualityRecordPageReqVO pageReqVO) {
-        return BeanUtils.toBean(equipmentTraceabilityMapper.selectPage(pageReqVO), LabQualityRecordRespVO.class);
+        return equipmentTraceabilityService.getEquipmentTraceabilityPage(pageReqVO);
     }
 
     public void updateEquipmentTraceabilityStatus(Long id, String status) {
-        equipmentTraceabilityMapper.update(null, new UpdateWrapper<LabEquipmentTraceabilityDO>().eq("id", id).set("status", status));
+        equipmentTraceabilityService.updateEquipmentTraceabilityStatus(id, status);
+    }
+
+    public List<LabEquipmentCalibrationEvidenceDTO> getCurrentEquipmentCalibrationEvidence(Long equipmentId) {
+        return equipmentTraceabilityService.getCurrentCalibrationEvidence(equipmentId);
     }
 
 
