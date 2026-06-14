@@ -28,6 +28,9 @@
         <el-button type="primary" @click="saveDesigner">
           <Icon class="mr-5px" icon="ep:finished" />保存方向包
         </el-button>
+        <el-button type="success" @click="publishDesigner">
+          <Icon class="mr-5px" icon="ep:promotion" />发布版本
+        </el-button>
       </div>
     </div>
 
@@ -36,7 +39,7 @@
         <div class="metric">
           <span>检测方向</span>
           <strong>{{ packForm.industry }}</strong>
-          <small>{{ packForm.packCode }}</small>
+          <small>{{ packForm.packCode }} · {{ getPackStatusLabel(activePack?.status) }}</small>
         </div>
       </el-col>
       <el-col :md="6" :xs="24">
@@ -274,6 +277,97 @@
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane label="样品要求" name="sample">
+        <div class="mb-10px flex justify-end">
+          <el-button type="primary" plain @click="addSampleRequirement">新增要求</el-button>
+        </div>
+        <el-table :data="sampleRequirements" row-key="requirementCode">
+          <el-table-column label="排序" width="120">
+            <template #default="scope">
+              <el-input-number v-model="scope.row.sort" :min="1" :step="10" controls-position="right" />
+            </template>
+          </el-table-column>
+          <el-table-column label="要求编码" min-width="160">
+            <template #default="scope">
+              <el-input v-model="scope.row.requirementCode" placeholder="如 SAMPLE_QTY" />
+            </template>
+          </el-table-column>
+          <el-table-column label="要求名称" min-width="160">
+            <template #default="scope">
+              <el-input v-model="scope.row.requirementName" placeholder="要求名称" />
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="140">
+            <template #default="scope">
+              <el-select v-model="scope.row.requirementType">
+                <el-option label="样品量" value="quantity" />
+                <el-option label="保存条件" value="storage" />
+                <el-option label="采样容器" value="container" />
+                <el-option label="交接要求" value="handover" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="要求内容" min-width="260">
+            <template #default="scope">
+              <el-input v-model="scope.row.requirementText" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="90" fixed="right">
+            <template #default="scope">
+              <el-button link type="danger" @click="removeSampleRequirement(scope.$index)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="质控规则" name="qc">
+        <div class="mb-10px flex justify-end">
+          <el-button type="primary" plain @click="addQcRule">新增规则</el-button>
+        </div>
+        <el-table :data="qcRules" row-key="ruleCode">
+          <el-table-column label="排序" width="120">
+            <template #default="scope">
+              <el-input-number v-model="scope.row.sort" :min="1" :step="10" controls-position="right" />
+            </template>
+          </el-table-column>
+          <el-table-column label="规则编码" min-width="150">
+            <template #default="scope">
+              <el-input v-model="scope.row.ruleCode" placeholder="如 BLANK" />
+            </template>
+          </el-table-column>
+          <el-table-column label="规则名称" min-width="150">
+            <template #default="scope">
+              <el-input v-model="scope.row.ruleName" placeholder="规则名称" />
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="130">
+            <template #default="scope">
+              <el-select v-model="scope.row.ruleType">
+                <el-option label="批次" value="batch" />
+                <el-option label="空白" value="blank" />
+                <el-option label="平行样" value="duplicate" />
+                <el-option label="校准" value="calibration" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="规则表达式" min-width="220">
+            <template #default="scope">
+              <el-input v-model="scope.row.ruleExpression" />
+            </template>
+          </el-table-column>
+          <el-table-column label="判定准则" min-width="220">
+            <template #default="scope">
+              <el-input v-model="scope.row.acceptanceCriteria" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="90" fixed="right">
+            <template #default="scope">
+              <el-button link type="danger" @click="removeQcRule(scope.$index)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane label="报告章节" name="report">
         <div class="mb-10px flex justify-end">
           <el-button type="primary" plain @click="addReportSection">新增章节</el-button>
@@ -314,6 +408,60 @@
           <el-table-column label="操作" width="90" fixed="right">
             <template #default="scope">
               <el-button link type="danger" @click="removeReportSection(scope.$index)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="证据要求" name="evidence">
+        <div class="mb-10px flex justify-end">
+          <el-button type="primary" plain @click="addEvidenceRequirement">新增证据</el-button>
+        </div>
+        <el-table :data="evidenceRequirements" row-key="requirementCode">
+          <el-table-column label="排序" width="120">
+            <template #default="scope">
+              <el-input-number v-model="scope.row.sort" :min="1" :step="10" controls-position="right" />
+            </template>
+          </el-table-column>
+          <el-table-column label="要求编码" min-width="160">
+            <template #default="scope">
+              <el-input v-model="scope.row.requirementCode" />
+            </template>
+          </el-table-column>
+          <el-table-column label="要求名称" min-width="170">
+            <template #default="scope">
+              <el-input v-model="scope.row.requirementName" />
+            </template>
+          </el-table-column>
+          <el-table-column label="证据类型" min-width="180">
+            <template #default="scope">
+              <el-input v-model="scope.row.evidenceType" />
+            </template>
+          </el-table-column>
+          <el-table-column label="来源" min-width="140">
+            <template #default="scope">
+              <el-select v-model="scope.row.sourceType">
+                <el-option label="设备" value="equipment" />
+                <el-option label="人员" value="personnel" />
+                <el-option label="环境" value="environment" />
+                <el-option label="原始记录" value="raw_record" />
+                <el-option label="报告" value="report" />
+              </el-select>
+            </template>
+          </el-table-column>
+          <el-table-column label="条款分类" min-width="140">
+            <template #default="scope">
+              <el-input v-model="scope.row.clauseCategory" />
+            </template>
+          </el-table-column>
+          <el-table-column label="必需" width="90">
+            <template #default="scope">
+              <el-switch v-model="scope.row.required" />
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="90" fixed="right">
+            <template #default="scope">
+              <el-button link type="danger" @click="removeEvidenceRequirement(scope.$index)">删除</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -449,6 +597,33 @@ interface ReportSection {
   sort: number
 }
 
+interface SampleRequirement {
+  requirementCode: string
+  requirementName: string
+  requirementType: string
+  requirementText: string
+  sort: number
+}
+
+interface QcRule {
+  ruleCode: string
+  ruleName: string
+  ruleType: string
+  ruleExpression: string
+  acceptanceCriteria: string
+  sort: number
+}
+
+interface EvidenceRequirement {
+  requirementCode: string
+  requirementName: string
+  evidenceType: string
+  sourceType: string
+  clauseCategory: string
+  required: boolean
+  sort: number
+}
+
 interface PackForm {
   domainCode: string
   domainName: string
@@ -467,6 +642,9 @@ interface ScenarioTemplate {
   testItems: TestItem[]
   resultFields: ResultField[]
   reportSections: ReportSection[]
+  sampleRequirements: SampleRequirement[]
+  qcRules: QcRule[]
+  evidenceRequirements: EvidenceRequirement[]
 }
 
 const scenarioTemplates: ScenarioTemplate[] = [
@@ -506,6 +684,17 @@ const scenarioTemplates: ScenarioTemplate[] = [
       { sort: 30, sectionCode: 'resultTable', sectionName: '检验结果', sourceType: 'result_values', visible: true },
       { sort: 40, sectionCode: 'clinicalHint', sectionName: '临床提示', sourceType: 'rules', visible: true },
       { sort: 50, sectionCode: 'sign', sectionName: '审核签发', sourceType: 'approval', visible: true }
+    ],
+    sampleRequirements: [
+      { sort: 10, requirementCode: 'SAMPLE_TYPE', requirementName: '样本类型', requirementType: 'container', requirementText: '静脉血或血浆样本，按项目要求选择抗凝管' },
+      { sort: 20, requirementCode: 'SAMPLE_TIME', requirementName: '送检时效', requirementType: 'handover', requirementText: '采集后 2 小时内送达并登记' }
+    ],
+    qcRules: [
+      { sort: 10, ruleCode: 'INTERNAL_QC', ruleName: '室内质控', ruleType: 'batch', ruleExpression: 'qc.result == pass', acceptanceCriteria: '每日每项目至少 1 次室内质控合格' }
+    ],
+    evidenceRequirements: [
+      { sort: 10, requirementCode: 'PERSON_AUTH', requirementName: '授权人员', evidenceType: 'PERSON_AUTH', sourceType: 'personnel', clauseCategory: 'personnel', required: true },
+      { sort: 20, requirementCode: 'DEVICE_QC', requirementName: '仪器质控记录', evidenceType: 'EQUIPMENT_CALIBRATION', sourceType: 'equipment', clauseCategory: 'equipment', required: true }
     ]
   },
   {
@@ -543,6 +732,18 @@ const scenarioTemplates: ScenarioTemplate[] = [
       { sort: 30, sectionCode: 'resultTable', sectionName: '检测结果', sourceType: 'result_values', visible: true },
       { sort: 40, sectionCode: 'qualityStatement', sectionName: '质量声明', sourceType: 'rules', visible: true },
       { sort: 50, sectionCode: 'sign', sectionName: '批准签发', sourceType: 'approval', visible: true }
+    ],
+    sampleRequirements: [
+      { sort: 10, requirementCode: 'SAMPLE_QTY', requirementName: '样品量', requirementType: 'quantity', requirementText: '常规理化项目不少于 500g' },
+      { sort: 20, requirementCode: 'SAMPLE_STORAGE', requirementName: '保存条件', requirementType: 'storage', requirementText: '易腐样品 0-4 摄氏度冷藏运输' }
+    ],
+    qcRules: [
+      { sort: 10, ruleCode: 'BLANK', ruleName: '空白样', ruleType: 'blank', ruleExpression: 'batch.blank.count >= 1', acceptanceCriteria: '每批至少 1 个空白样' },
+      { sort: 20, ruleCode: 'DUPLICATE', ruleName: '平行样', ruleType: 'duplicate', ruleExpression: 'batch.duplicate.rate >= 0.1', acceptanceCriteria: '每批不少于 10% 平行样' }
+    ],
+    evidenceRequirements: [
+      { sort: 10, requirementCode: 'EQUIPMENT_CERT', requirementName: '设备校准证书', evidenceType: 'EQUIPMENT_CALIBRATION', sourceType: 'equipment', clauseCategory: 'equipment', required: true },
+      { sort: 20, requirementCode: 'RAW_RECORD', requirementName: '原始记录', evidenceType: 'RAW_DATA', sourceType: 'raw_record', clauseCategory: 'technical_record', required: true }
     ]
   },
   {
@@ -580,6 +781,18 @@ const scenarioTemplates: ScenarioTemplate[] = [
       { sort: 30, sectionCode: 'resultTable', sectionName: '分析结果', sourceType: 'result_values', visible: true },
       { sort: 40, sectionCode: 'qaInfo', sectionName: '质控信息', sourceType: 'rules', visible: true },
       { sort: 50, sectionCode: 'sign', sectionName: '审核签发', sourceType: 'approval', visible: true }
+    ],
+    sampleRequirements: [
+      { sort: 10, requirementCode: 'PRESERVATION', requirementName: '样品保存', requirementType: 'storage', requirementText: '按 HJ 493 要求保存、运输和交接' },
+      { sort: 20, requirementCode: 'CONTAINER', requirementName: '采样容器', requirementType: 'container', requirementText: '按检测项目选择玻璃或聚乙烯容器' }
+    ],
+    qcRules: [
+      { sort: 10, ruleCode: 'FIELD_BLANK', ruleName: '现场空白', ruleType: 'blank', ruleExpression: 'sampling.fieldBlank.required == true', acceptanceCriteria: '现场采样批次应包含空白样' },
+      { sort: 20, ruleCode: 'STANDARD_CURVE', ruleName: '标准曲线', ruleType: 'calibration', ruleExpression: 'curve.r2 >= 0.995', acceptanceCriteria: '标准曲线相关系数不低于 0.995' }
+    ],
+    evidenceRequirements: [
+      { sort: 10, requirementCode: 'SAMPLING_RECORD', requirementName: '采样记录', evidenceType: 'RAW_DATA', sourceType: 'raw_record', clauseCategory: 'technical_record', required: true },
+      { sort: 20, requirementCode: 'ENV_RECORD', requirementName: '环境条件记录', evidenceType: 'ENVIRONMENT_RECORD', sourceType: 'environment', clauseCategory: 'environment', required: true }
     ]
   },
   {
@@ -617,6 +830,18 @@ const scenarioTemplates: ScenarioTemplate[] = [
       { sort: 30, sectionCode: 'resultTable', sectionName: '结果判定', sourceType: 'result_values', visible: true },
       { sort: 40, sectionCode: 'deviation', sectionName: '偏离说明', sourceType: 'rules', visible: true },
       { sort: 50, sectionCode: 'sign', sectionName: '审核签发', sourceType: 'approval', visible: true }
+    ],
+    sampleRequirements: [
+      { sort: 10, requirementCode: 'SAMPLE_COUNT', requirementName: '样品数量', requirementType: 'quantity', requirementText: '按可靠性项目提供试验样品和备样' },
+      { sort: 20, requirementCode: 'PRECONDITION', requirementName: '预处理', requirementType: 'storage', requirementText: '试验前按标准完成温湿度平衡' }
+    ],
+    qcRules: [
+      { sort: 10, ruleCode: 'EQUIPMENT_STATUS', ruleName: '设备状态确认', ruleType: 'calibration', ruleExpression: 'equipment.status == enabled', acceptanceCriteria: '使用设备均在校准有效期内' },
+      { sort: 20, ruleCode: 'CONDITION_TRACE', ruleName: '工况追溯', ruleType: 'batch', ruleExpression: 'condition.records.complete == true', acceptanceCriteria: '温湿度、振动等工况记录完整' }
+    ],
+    evidenceRequirements: [
+      { sort: 10, requirementCode: 'EQUIPMENT_CERT', requirementName: '设备校准证书', evidenceType: 'EQUIPMENT_CALIBRATION', sourceType: 'equipment', clauseCategory: 'equipment', required: true },
+      { sort: 20, requirementCode: 'TEST_CONDITION', requirementName: '测试条件记录', evidenceType: 'RAW_DATA', sourceType: 'raw_record', clauseCategory: 'technical_record', required: true }
     ]
   }
 ]
@@ -640,6 +865,21 @@ const workflowNodes = ref<WorkflowNode[]>(clone(defaultTemplate.workflowNodes))
 const testItems = ref<TestItem[]>(clone(defaultTemplate.testItems))
 const resultFields = ref<ResultField[]>(clone(defaultTemplate.resultFields))
 const reportSections = ref<ReportSection[]>(clone(defaultTemplate.reportSections))
+const sampleRequirements = ref<SampleRequirement[]>(clone(defaultTemplate.sampleRequirements))
+const qcRules = ref<QcRule[]>(clone(defaultTemplate.qcRules))
+const evidenceRequirements = ref<EvidenceRequirement[]>(clone(defaultTemplate.evidenceRequirements))
+
+const packStatusOptions = [
+  { label: '草稿', value: 'draft' },
+  { label: '已发布', value: 'published' },
+  { label: '已归档', value: 'archived' },
+  { label: '旧启用', value: 'active' }
+]
+
+const getPackStatusLabel = (status?: string) =>
+  packStatusOptions.find((item) => item.value === status)?.label || '未保存'
+
+const canEditActivePack = computed(() => !activePack.value?.status || ['draft', 'active'].includes(activePack.value.status))
 
 const describeFieldRule = (field: ResultField) => {
   if (field.enumOptions?.length) return field.enumOptions.join(' / ')
@@ -665,6 +905,9 @@ const applySelectedTemplate = () => {
   testItems.value = clone(template.testItems)
   resultFields.value = clone(template.resultFields)
   reportSections.value = clone(template.reportSections)
+  sampleRequirements.value = clone(template.sampleRequirements)
+  qcRules.value = clone(template.qcRules)
+  evidenceRequirements.value = clone(template.evidenceRequirements)
   auditLogs.value.unshift(`已应用${template.label}方向模板`)
   resetExecutionState()
 }
@@ -726,6 +969,37 @@ const removeResultField = (index: number) => {
   resultFields.value.splice(index, 1)
 }
 
+const addSampleRequirement = () => {
+  const index = sampleRequirements.value.length + 1
+  sampleRequirements.value.push({
+    sort: nextSort(sampleRequirements.value),
+    requirementCode: `SAMPLE_REQ_${index}`,
+    requirementName: '新样品要求',
+    requirementType: 'quantity',
+    requirementText: '请输入样品接收、保存或交接要求'
+  })
+}
+
+const removeSampleRequirement = (index: number) => {
+  sampleRequirements.value.splice(index, 1)
+}
+
+const addQcRule = () => {
+  const index = qcRules.value.length + 1
+  qcRules.value.push({
+    sort: nextSort(qcRules.value),
+    ruleCode: `QC_RULE_${index}`,
+    ruleName: '新质控规则',
+    ruleType: 'batch',
+    ruleExpression: 'qc.required == true',
+    acceptanceCriteria: '请输入判定准则'
+  })
+}
+
+const removeQcRule = (index: number) => {
+  qcRules.value.splice(index, 1)
+}
+
 const addReportSection = () => {
   const index = reportSections.value.length + 1
   reportSections.value.push({
@@ -739,6 +1013,23 @@ const addReportSection = () => {
 
 const removeReportSection = (index: number) => {
   reportSections.value.splice(index, 1)
+}
+
+const addEvidenceRequirement = () => {
+  const index = evidenceRequirements.value.length + 1
+  evidenceRequirements.value.push({
+    sort: nextSort(evidenceRequirements.value),
+    requirementCode: `EVIDENCE_REQ_${index}`,
+    requirementName: '新证据要求',
+    evidenceType: 'RAW_DATA',
+    sourceType: 'raw_record',
+    clauseCategory: 'technical_record',
+    required: true
+  })
+}
+
+const removeEvidenceRequirement = (index: number) => {
+  evidenceRequirements.value.splice(index, 1)
 }
 
 const formatEnumOptions = (options?: string[]) => options?.join(',') || ''
@@ -757,10 +1048,13 @@ const buildWorkflowSchema = () => ({
     needSampling: true,
     sampleFields: ['样品名称', '样品编号', '样品类型', '接收时间', '委托部门']
   },
+  sampleRequirements: sampleRequirements.value,
   testItems: testItems.value.map((item) => ({
     ...item,
     resultFields: resultFields.value.filter((field) => field.itemCode === item.itemCode)
   })),
+  qcRules: qcRules.value,
+  evidenceRequirements: evidenceRequirements.value,
   reviewPolicy: {
     resultReview: true,
     reportReview: true
@@ -788,7 +1082,10 @@ const getPackConfigPayload = (domainPackId: number) => ({
     sort: (index + 1) * 10,
     status: 'active'
   })),
-  reportSections: reportSections.value.map((item) => ({ ...item, status: 'active' }))
+  reportSections: reportSections.value.map((item) => ({ ...item, status: 'active' })),
+  sampleRequirements: sampleRequirements.value.map((item) => ({ ...item, status: 'active' })),
+  qcRules: qcRules.value.map((item) => ({ ...item, status: 'active' })),
+  evidenceRequirements: evidenceRequirements.value.map((item) => ({ ...item, status: 'active' }))
 })
 
 const applyLoadedPackConfig = async (domainPackId: number) => {
@@ -805,6 +1102,9 @@ const applyLoadedPackConfig = async (domainPackId: number) => {
     }))
   }
   if (config.reportSections?.length) reportSections.value = config.reportSections
+  if (config.sampleRequirements?.length) sampleRequirements.value = config.sampleRequirements
+  if (config.qcRules?.length) qcRules.value = config.qcRules
+  if (config.evidenceRequirements?.length) evidenceRequirements.value = config.evidenceRequirements
 }
 
 const getOrCreateDomain = async () => {
@@ -849,6 +1149,10 @@ const loadExistingPack = async () => {
 }
 
 const saveDesigner = async () => {
+  if (!canEditActivePack.value) {
+    message.warning('已发布或已归档的方向包不能原地修改，请在方案包管理中复制新版本后再编辑。')
+    return
+  }
   const domain = await getOrCreateDomain()
   const payload: LabDomainPackVO = {
     id: activePack.value?.id,
@@ -860,7 +1164,7 @@ const saveDesigner = async () => {
     applicationScope: packForm.applicationScope,
     workflowSchema: JSON.stringify(buildWorkflowSchema()),
     templateSchema: JSON.stringify(buildTemplateSchema()),
-    status: 'active',
+    status: 'draft',
     remark: '由检测方向包设计器可视化维护'
   }
   if (payload.id) {
@@ -875,15 +1179,43 @@ const saveDesigner = async () => {
   message.success('方向包已保存')
 }
 
-const ensureDesignerSaved = async () => {
+const publishDesigner = async () => {
   if (!activePack.value?.id) {
     await saveDesigner()
+  }
+  if (!activePack.value?.id) return
+  if (activePack.value.status === 'published') {
+    message.info('当前方向包版本已发布')
+    return
+  }
+  if (activePack.value.status === 'archived') {
+    message.warning('已归档方向包不能再次发布，请复制新版本后发布。')
+    return
+  }
+  if (activePack.value.status === 'active') {
+    await saveDesigner()
+  }
+  await LabDomainPackApi.publishDomainPack(activePack.value.id)
+  activePack.value = { ...activePack.value, status: 'published' }
+  auditLogs.value.unshift(`${packForm.packName} 已发布为不可变版本`)
+  message.success('方向包版本已发布')
+}
+
+const ensureDesignerPublished = async () => {
+  if (!activePack.value?.id) {
+    await saveDesigner()
+  }
+  if (activePack.value?.status !== 'published') {
+    await publishDesigner()
+  }
+  if (activePack.value?.status !== 'published') {
+    throw new Error('方向包未发布，不能创建执行快照')
   }
   return activePack.value!
 }
 
 const createTestRequest = async () => {
-  const pack = await ensureDesignerSaved()
+  const pack = await ensureDesignerPublished()
   const requestNo = buildRequestNo()
   const id = await LimsWorkflowApi.create('/lims/request', {
     requestNo,

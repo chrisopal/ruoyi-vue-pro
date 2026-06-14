@@ -22,8 +22,10 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.DomainPackGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.ReportEvidenceGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
 import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
+import cn.iocoder.yudao.module.lims.service.workflow.model.IssuedReportEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -73,6 +75,8 @@ public class LimsWorkflowService {
     private DomainPackGateway domainPackGateway;
     @Resource
     private EquipmentGateway equipmentGateway;
+    @Resource
+    private ReportEvidenceGateway reportEvidenceGateway;
     @Resource
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Resource
@@ -358,10 +362,22 @@ public class LimsWorkflowService {
 
     public void issueReport(Long id) {
         LimsReportDO report = validateReportExists(id);
+        LimsTestRequestDO request = validateRequestExists(report.getRequestId());
+        String issuedTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         reportMapper.update(null, new UpdateWrapper<LimsReportDO>()
                 .eq("id", id)
                 .set("status", "issued")
-                .set("issued_time", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+                .set("issued_time", issuedTime));
+        reportEvidenceGateway.registerIssuedReportEvidence(new IssuedReportEvidence(
+                report.getId(),
+                report.getReportNo(),
+                report.getReportName(),
+                request.getId(),
+                request.getRequestNo(),
+                report.getFileUrl(),
+                StringUtils.hasText(report.getDataSnapshotHash()) ? report.getDataSnapshotHash() : sha256(report.getDataSnapshot()),
+                issuedTime,
+                "检测报告已签发：" + report.getReportNo()));
         requestMapper.update(null, new UpdateWrapper<LimsTestRequestDO>().eq("id", report.getRequestId()).set("status", "completed"));
     }
 

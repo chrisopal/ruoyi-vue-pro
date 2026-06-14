@@ -12,6 +12,7 @@ import cn.iocoder.yudao.module.lab.dal.mysql.standard.LabStandardClauseMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.standard.LabStandardMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
@@ -105,6 +106,15 @@ public class LabStandardServiceImpl implements LabStandardService {
     public List<LabStandardClauseDO> getStandardClauseListByStandardId(Long standardId) {
         validateStandardExists(standardId);
         return standardClauseMapper.selectListByStandardId(standardId);
+    }
+
+    @Override
+    public Long getFirstClauseIdByCategory(String clauseCategory) {
+        if (!StringUtils.hasText(clauseCategory)) {
+            return null;
+        }
+        LabStandardClauseDO clause = standardClauseMapper.selectFirstByClauseCategory(clauseCategory);
+        return clause == null ? null : clause.getId();
     }
 
     private void validateStandardExists(Long id) {

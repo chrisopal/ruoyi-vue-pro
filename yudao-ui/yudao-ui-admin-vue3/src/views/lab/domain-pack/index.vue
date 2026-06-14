@@ -13,7 +13,7 @@
             v-for="item in domainOptions"
             :key="item.id"
             :label="item.domainName"
-            :value="item.id"
+            :value="item.id || 0"
           />
         </el-select>
       </el-form-item>
@@ -102,10 +102,11 @@
         prop="createTime"
         width="180"
       />
-      <el-table-column align="center" fixed="right" label="操作" width="160">
+      <el-table-column align="center" fixed="right" label="操作" width="260">
         <template #default="scope">
           <el-button
             v-hasPermi="['lab:domain-pack:update']"
+            v-if="isPackEditable(scope.row)"
             link
             type="primary"
             @click="openForm('update', scope.row.id)"
@@ -113,7 +114,35 @@
             编辑
           </el-button>
           <el-button
+            v-hasPermi="['lab:domain-pack:update']"
+            v-if="scope.row.status === 'draft'"
+            link
+            type="success"
+            @click="handlePublish(scope.row.id)"
+          >
+            发布
+          </el-button>
+          <el-button
+            v-hasPermi="['lab:domain-pack:update']"
+            v-if="scope.row.status === 'published'"
+            link
+            type="warning"
+            @click="handleArchive(scope.row.id)"
+          >
+            归档
+          </el-button>
+          <el-button
+            v-hasPermi="['lab:domain-pack:create']"
+            v-if="scope.row.status !== 'draft'"
+            link
+            type="primary"
+            @click="handleCopyVersion(scope.row)"
+          >
+            复制版本
+          </el-button>
+          <el-button
             v-hasPermi="['lab:domain-pack:delete']"
+            v-if="isPackEditable(scope.row)"
             link
             type="danger"
             @click="handleDelete(scope.row.id)"
@@ -141,7 +170,7 @@
                 v-for="item in domainOptions"
                 :key="item.id"
                 :label="item.domainName"
-                :value="item.id"
+                :value="item.id || 0"
               />
             </el-select>
           </el-form-item>
@@ -237,10 +266,13 @@ const queryParams = reactive({
 })
 const queryFormRef = ref()
 
-const statusOptions = [
-  { label: '启用', value: 'active', tag: 'success' },
+type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info'
+
+const statusOptions: Array<{ label: string; value: string; tag: TagType }> = [
   { label: '草稿', value: 'draft', tag: 'info' },
-  { label: '停用', value: 'disabled', tag: 'danger' }
+  { label: '已发布', value: 'published', tag: 'success' },
+  { label: '已归档', value: 'archived', tag: 'warning' },
+  { label: '旧启用', value: 'active', tag: 'info' }
 ]
 
 const domainOptions = ref<LabDomainProfileVO[]>([])
@@ -250,8 +282,10 @@ const getStatusLabel = (status: string) => {
 }
 
 const getStatusTag = (status: string) => {
-  return statusOptions.find((item) => item.value === status)?.tag || ''
+  return statusOptions.find((item) => item.value === status)?.tag || 'info'
 }
+
+const isPackEditable = (row: LabDomainPackVO) => ['draft', 'active'].includes(row.status)
 
 const getDomainName = (domainId: number) => {
   return domainOptions.value.find((item) => item.id === domainId)?.domainName || domainId
@@ -349,6 +383,29 @@ const handleDelete = async (id: number) => {
   await message.delConfirm()
   await LabDomainPackApi.deleteDomainPack(id)
   message.success(t('common.delSuccess'))
+  await getList()
+}
+
+const handlePublish = async (id: number) => {
+  await message.confirm('发布后当前版本不能原地修改，后续变更需要复制新版本。')
+  await LabDomainPackApi.publishDomainPack(id)
+  message.success('方向包已发布')
+  await getList()
+}
+
+const handleArchive = async (id: number) => {
+  await message.confirm('归档后该版本不能用于新的执行快照。')
+  await LabDomainPackApi.archiveDomainPack(id)
+  message.success('方向包已归档')
+  await getList()
+}
+
+const handleCopyVersion = async (row: LabDomainPackVO) => {
+  const result = await message.prompt('请输入新版本号', '复制方向包版本')
+  const targetVersion = result.value
+  if (!targetVersion) return
+  await LabDomainPackApi.copyDomainPackVersion(row.id!, targetVersion)
+  message.success('已复制为新的草稿版本')
   await getList()
 }
 

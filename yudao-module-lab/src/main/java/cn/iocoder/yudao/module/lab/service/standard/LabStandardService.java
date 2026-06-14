@@ -36,4 +36,6 @@ public interface LabStandardService {
 
     List<LabStandardClauseDO> getStandardClauseListByStandardId(Long standardId);
 
+    Long getFirstClauseIdByCategory(String clauseCategory);
+
 }

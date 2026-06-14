@@ -29,9 +29,17 @@ public class LabTemplateVersionSaveReqVO {
     @Size(max = 64, message = "模板类型长度不能超过 64 个字符")
     private String templateType;
 
+    @Size(max = 32, message = "模板发布状态长度不能超过 32 个字符")
+    private String templateStatus;
+
+    private String sectionSchema;
+
+    private String outputFormats;
+
+    private String dataSourceSchema;
+
     private String previewSchema;
 
-    @NotBlank(message = "状态不能为空")
     @Size(max = 32, message = "状态长度不能超过 32 个字符")
     private String status;
 

@@ -34,5 +34,17 @@ export const LabDomainPackApi = {
 
   deleteDomainPack: async (id: number) => {
     return await request.delete({ url: '/lab/domain-pack/delete', params: { id } })
+  },
+
+  publishDomainPack: async (id: number) => {
+    return await request.post({ url: `/lab/domain-pack/${id}/publish` })
+  },
+
+  archiveDomainPack: async (id: number) => {
+    return await request.post({ url: `/lab/domain-pack/${id}/archive` })
+  },
+
+  copyDomainPackVersion: async (id: number, targetVersion: string) => {
+    return await request.post({ url: `/lab/domain-pack/${id}/copy-version`, params: { targetVersion } })
   }
 }

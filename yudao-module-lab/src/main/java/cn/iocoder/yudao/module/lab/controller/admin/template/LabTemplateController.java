@@ -41,6 +41,22 @@ public class LabTemplateController {
         return success(true);
     }
 
+    @PutMapping("/version/publish")
+    @Operation(summary = "发布模板版本")
+    @PreAuthorize("@ss.hasPermission('lab:template:save')")
+    public CommonResult<Boolean> publishTemplateVersion(@RequestParam("id") Long id) {
+        templateService.publishTemplateVersion(id);
+        return success(true);
+    }
+
+    @PutMapping("/version/archive")
+    @Operation(summary = "归档模板版本")
+    @PreAuthorize("@ss.hasPermission('lab:template:save')")
+    public CommonResult<Boolean> archiveTemplateVersion(@RequestParam("id") Long id) {
+        templateService.archiveTemplateVersion(id);
+        return success(true);
+    }
+
     @DeleteMapping("/version/delete")
     @Operation(summary = "删除模板版本")
     @PreAuthorize("@ss.hasPermission('lab:template:save')")

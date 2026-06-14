@@ -8,6 +8,9 @@ import java.util.List;
 public class LabTemplatePreviewRespVO {
 
     private LabTemplateVersionRespVO template;
+    private String sectionSchema;
+    private String outputFormats;
+    private String dataSourceSchema;
     private List<LabTemplateFieldBindingRespVO> fields;
 
 }

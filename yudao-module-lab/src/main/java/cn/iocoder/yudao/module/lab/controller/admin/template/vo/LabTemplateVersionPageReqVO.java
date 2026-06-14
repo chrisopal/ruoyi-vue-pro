@@ -16,6 +16,7 @@ public class LabTemplateVersionPageReqVO extends PageParam {
     private String templateCode;
     private String templateName;
     private String templateType;
+    private String templateStatus;
     private String status;
 
 }

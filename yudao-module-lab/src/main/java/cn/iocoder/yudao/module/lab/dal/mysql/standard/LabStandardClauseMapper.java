@@ -37,8 +37,12 @@ public interface LabStandardClauseMapper extends BaseMapperX<LabStandardClauseDO
     }
 
     default LabStandardClauseDO selectFirstEquipmentClause() {
+        return selectFirstByClauseCategory("equipment");
+    }
+
+    default LabStandardClauseDO selectFirstByClauseCategory(String clauseCategory) {
         return selectOne(new LambdaQueryWrapperX<LabStandardClauseDO>()
-                .eq(LabStandardClauseDO::getClauseCategory, "equipment")
+                .eq(LabStandardClauseDO::getClauseCategory, clauseCategory)
                 .orderByAsc(LabStandardClauseDO::getClauseCode)
                 .last("LIMIT 1"));
     }

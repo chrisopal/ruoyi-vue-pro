@@ -7,6 +7,10 @@ export interface LabTemplateVersionVO {
   templateName: string
   templateVersion: string
   templateType: string
+  templateStatus?: string
+  sectionSchema?: string
+  outputFormats?: string
+  dataSourceSchema?: string
   previewSchema?: string
   status: string
   createTime?: string
@@ -38,6 +42,12 @@ export const LabTemplateApi = {
   },
   deleteTemplateVersion: async (id: number) => {
     return await request.delete({ url: '/lab/template/version/delete', params: { id } })
+  },
+  publishTemplateVersion: async (id: number) => {
+    return await request.put({ url: '/lab/template/version/publish', params: { id } })
+  },
+  archiveTemplateVersion: async (id: number) => {
+    return await request.put({ url: '/lab/template/version/archive', params: { id } })
   },
   getFieldBindingPage: async (params: any) => {
     return await request.get({ url: '/lab/template/field/page', params })

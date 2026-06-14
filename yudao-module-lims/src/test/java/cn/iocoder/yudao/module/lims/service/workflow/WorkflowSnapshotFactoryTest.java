@@ -29,6 +29,7 @@ class WorkflowSnapshotFactoryTest {
         assertEquals(1L, json.path("domainPackId").asLong());
         assertEquals("FOOD_ROUTINE", json.path("packCode").asText());
         assertEquals("1.0", json.path("packVersion").asText());
+        assertEquals("REPORT_BASIC_V1", json.path("template").path("templates").get(0).asText());
         assertTrue(json.path("workflowNodes").isArray());
         assertTrue(json.path("sampleRequirements").isArray());
         assertTrue(json.path("testItems").isArray());
@@ -47,6 +48,7 @@ class WorkflowSnapshotFactoryTest {
         pack.setPackName("食品常规检测方案包");
         pack.setPackVersion("1.0");
         pack.setIndustry("食品");
+        pack.setTemplateSchema("{\"templates\":[\"REPORT_BASIC_V1\"],\"outputFormats\":[\"WORD\",\"PDF\"]}");
         pack.setWorkflowNodes(List.of(workflowNode()));
         pack.setSampleRequirements(List.of(sampleRequirement()));
         pack.setTestItems(List.of(testItem()));

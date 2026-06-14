@@ -20,6 +20,10 @@ public class LabTemplateVersionDO extends TenantBaseDO {
     private String templateName;
     private String templateVersion;
     private String templateType;
+    private String templateStatus;
+    private String sectionSchema;
+    private String outputFormats;
+    private String dataSourceSchema;
     private String previewSchema;
     private String status;
 

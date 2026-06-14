@@ -16,17 +16,30 @@ public class ReportDraftPlanFactory {
     }
 
     public ObjectNode createReportDraftPlan(JsonNode workflowSnapshot) {
+        JsonNode templateSchema = workflowSnapshot.path("template");
         ObjectNode plan = objectMapper.createObjectNode();
         plan.putNull("templateId");
         plan.put("templateVersion", workflowSnapshot.path("packVersion").asText(""));
-        ArrayNode formats = plan.putArray("outputFormats");
+        plan.set("templateCodes", copyArray(templateSchema.path("templates")));
+        plan.set("outputFormats", createOutputFormats(templateSchema));
+        plan.set("sections", copyArray(workflowSnapshot.path("reportSections")));
+        plan.set("sectionRules", copyArray(templateSchema.path("reportSections")));
+        plan.set("dataBindings", createDataBindings(workflowSnapshot.path("resultFields")));
+        plan.set("evidenceRequirements", copyArray(workflowSnapshot.path("evidenceRequirements")));
+        plan.set("templateSchema", templateSchema.deepCopy());
+        return plan;
+    }
+
+    private ArrayNode createOutputFormats(JsonNode templateSchema) {
+        ArrayNode configured = copyArray(templateSchema.path("outputFormats"));
+        if (configured.size() > 0) {
+            return configured;
+        }
+        ArrayNode formats = objectMapper.createArrayNode();
         formats.add("WORD");
         formats.add("PDF");
         formats.add("EXCEL");
-        plan.set("sections", copyArray(workflowSnapshot.path("reportSections")));
-        plan.set("dataBindings", createDataBindings(workflowSnapshot.path("resultFields")));
-        plan.set("evidenceRequirements", copyArray(workflowSnapshot.path("evidenceRequirements")));
-        return plan;
+        return formats;
     }
 
     private ArrayNode createDataBindings(JsonNode resultFields) {

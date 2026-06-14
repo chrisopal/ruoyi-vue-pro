@@ -34,5 +34,7 @@ public interface ErrorCodeConstants {
     ErrorCode EVIDENCE_OBJECT_CODE_DUPLICATE = new ErrorCode(1_050_001_021, "证据对象编码已存在");
     ErrorCode EVIDENCE_LINK_EVIDENCE_REQUIRED = new ErrorCode(1_050_001_022, "证据关联必须指定证据对象或证据编码");
     ErrorCode EVIDENCE_LINK_SOURCE_REQUIRED = new ErrorCode(1_050_001_023, "旧模式证据关联必须指定来源对象");
+    ErrorCode TEMPLATE_VERSION_IMMUTABLE = new ErrorCode(1_050_001_024, "报告模板已发布或归档，不能原地修改");
+    ErrorCode TEMPLATE_VERSION_STATUS_INVALID = new ErrorCode(1_050_001_025, "报告模板状态不允许当前操作");
 
 }

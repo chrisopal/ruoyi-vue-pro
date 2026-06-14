@@ -18,8 +18,10 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.DomainPackGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.ReportEvidenceGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
 import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
+import cn.iocoder.yudao.module.lims.service.workflow.model.IssuedReportEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private DomainPackGateway domainPackGateway;
     @Mock
     private EquipmentGateway equipmentGateway;
+    @Mock
+    private ReportEvidenceGateway reportEvidenceGateway;
     @Mock
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Spy
@@ -108,7 +112,9 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && plan.getPlanJson().contains("sampleRequirements")
                         && plan.getPlanJson().contains("qcCheckPlans")
                         && plan.getPlanJson().contains("evidenceRequirementPlans")
-                        && plan.getPlanJson().contains("reportDraftPlan")));
+                        && plan.getPlanJson().contains("reportDraftPlan")
+                        && plan.getPlanJson().contains("templateCodes")
+                        && plan.getPlanJson().contains("REPORT_BASIC_V1")));
     }
 
     @Test
@@ -147,6 +153,24 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && report.getDataSnapshot().contains("PH-METER-001")
                         && report.getDataSnapshot().contains("CERT-001")
                         && report.getDataSnapshotHash() != null));
+    }
+
+    @Test
+    void issueReport_shouldRegisterIssuedReportAsEvidenceObject() {
+        LimsReportDO report = report();
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(reportMapper.selectById(200L)).thenReturn(report);
+        when(requestMapper.selectById(1L)).thenReturn(request);
+
+        workflowService.issueReport(200L);
+
+        verify(reportEvidenceGateway).registerIssuedReportEvidence(argThat((IssuedReportEvidence evidence) ->
+                Long.valueOf(200L).equals(evidence.reportId())
+                        && "RPT-2026-001".equals(evidence.reportNo())
+                        && Long.valueOf(1L).equals(evidence.requestId())
+                        && "REQ-2026-001".equals(evidence.requestNo())
+                        && "hash-report-001".equals(evidence.dataSnapshotHash())
+                        && "https://example.test/report.pdf".equals(evidence.fileUrl())));
     }
 
     private static LimsWorkflowSaveReqVO createReq() {
@@ -222,12 +246,32 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         return task;
     }
 
+    private static LimsReportDO report() {
+        LimsReportDO report = new LimsReportDO();
+        report.setId(200L);
+        report.setRequestId(1L);
+        report.setRequestNo("REQ-2026-001");
+        report.setReportNo("RPT-2026-001");
+        report.setReportName("食品委托检测报告");
+        report.setFileUrl("https://example.test/report.pdf");
+        report.setDataSnapshot("{\"reportNo\":\"RPT-2026-001\"}");
+        report.setDataSnapshotHash("hash-report-001");
+        return report;
+    }
+
     private static String snapshotWithAllSections() {
         return """
                 {
                   "domainPackId": 1,
                   "packCode": "FOOD_ROUTINE",
                   "packVersion": "1.0",
+                  "template": {
+                    "templates": ["REPORT_BASIC_V1"],
+                    "outputFormats": ["WORD", "PDF"],
+                    "reportSections": [
+                      {"sectionCode": "RESULTS", "sectionName": "检测结果", "sourceType": "result_values"}
+                    ]
+                  },
                   "sampleRequirements": [
                     {"requirementCode": "SAMPLE_QTY", "requirementName": "样品量", "requirementText": ">= 500g"}
                   ],

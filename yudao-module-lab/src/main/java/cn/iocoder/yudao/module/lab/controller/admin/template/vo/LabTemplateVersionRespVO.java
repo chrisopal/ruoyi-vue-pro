@@ -13,6 +13,10 @@ public class LabTemplateVersionRespVO {
     private String templateName;
     private String templateVersion;
     private String templateType;
+    private String templateStatus;
+    private String sectionSchema;
+    private String outputFormats;
+    private String dataSourceSchema;
     private String previewSchema;
     private String status;
     private LocalDateTime createTime;

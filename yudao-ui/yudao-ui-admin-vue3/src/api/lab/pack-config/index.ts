@@ -45,12 +45,45 @@ export interface ReportSectionVO {
   status?: string
 }
 
+export interface SampleRequirementVO {
+  requirementCode: string
+  requirementName: string
+  requirementType?: string
+  requirementText?: string
+  sort?: number
+  status?: string
+}
+
+export interface QcRuleVO {
+  ruleCode: string
+  ruleName: string
+  ruleType?: string
+  ruleExpression?: string
+  acceptanceCriteria?: string
+  sort?: number
+  status?: string
+}
+
+export interface EvidenceRequirementVO {
+  requirementCode: string
+  requirementName: string
+  evidenceType?: string
+  sourceType?: string
+  clauseCategory?: string
+  required?: boolean
+  sort?: number
+  status?: string
+}
+
 export interface LabPackConfigVO {
   domainPackId: number
   workflowNodes: WorkflowNodeVO[]
   testItems: TestItemVO[]
   resultFields: ResultFieldVO[]
   reportSections: ReportSectionVO[]
+  sampleRequirements?: SampleRequirementVO[]
+  qcRules?: QcRuleVO[]
+  evidenceRequirements?: EvidenceRequirementVO[]
 }
 
 export const LabPackConfigApi = {

@@ -16,6 +16,7 @@ public interface LabTemplateVersionMapper extends BaseMapperX<LabTemplateVersion
                 .likeIfPresent(LabTemplateVersionDO::getTemplateCode, reqVO.getTemplateCode())
                 .likeIfPresent(LabTemplateVersionDO::getTemplateName, reqVO.getTemplateName())
                 .eqIfPresent(LabTemplateVersionDO::getTemplateType, reqVO.getTemplateType())
+                .eqIfPresent(LabTemplateVersionDO::getTemplateStatus, reqVO.getTemplateStatus())
                 .eqIfPresent(LabTemplateVersionDO::getStatus, reqVO.getStatus())
                 .orderByDesc(LabTemplateVersionDO::getId));
     }

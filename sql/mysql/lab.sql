@@ -223,8 +223,12 @@ CREATE TABLE IF NOT EXISTS `lab_template_version` (
   `template_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '模板名称',
   `template_version` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '模板版本',
   `template_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '模板类型',
+  `template_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft' COMMENT '模板发布状态',
+  `section_schema` json NULL COMMENT '报告章节配置 JSON',
+  `output_formats` json NULL COMMENT '输出格式 JSON',
+  `data_source_schema` json NULL COMMENT '数据来源配置 JSON',
   `preview_schema` json NULL COMMENT '预览配置 JSON',
-  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft' COMMENT '状态',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active' COMMENT '启用状态',
   `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
@@ -232,7 +236,8 @@ CREATE TABLE IF NOT EXISTS `lab_template_version` (
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE KEY `uk_lab_template_version_tenant_deleted` (`template_code`, `template_version`, `tenant_id`, `deleted`) USING BTREE
+  UNIQUE KEY `uk_lab_template_version_tenant_deleted` (`template_code`, `template_version`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_template_version_template_status` (`template_status`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室模板版本';
 
 CREATE TABLE IF NOT EXISTS `lab_template_field_binding` (
@@ -624,7 +629,7 @@ INSERT INTO `lab_domain_pack` (`domain_id`, `pack_code`, `pack_name`, `pack_vers
 SELECT `id`, 'FOOD_ROUTINE_V1', '食品常规检测方案包', '1.0', '食品', '食品理化、微生物、污染物等常规检测场景',
        JSON_OBJECT('stages', JSON_ARRAY('request', 'sample', 'task', 'raw_record', 'review', 'report')),
        JSON_OBJECT('templates', JSON_ARRAY('sample_label', 'raw_record', 'report')),
-       'active', '领域差异通过方案包配置承载，业务执行只引用方案包。', 'admin', NOW(), '', NOW(), b'0', 1
+       'published', '领域差异通过方案包配置承载，业务执行只引用方案包。', 'admin', NOW(), '', NOW(), b'0', 1
 FROM `lab_domain_profile`
 WHERE `domain_code` = 'FOOD' AND `tenant_id` = 1 AND `deleted` = b'0'
   AND NOT EXISTS (
@@ -636,7 +641,7 @@ INSERT INTO `lab_domain_pack` (`domain_id`, `pack_code`, `pack_name`, `pack_vers
 SELECT `id`, 'ENVIRONMENT_ROUTINE_V1', '环境常规检测方案包', '1.0', '环境', '水、气、土壤、噪声等环境检测场景',
        JSON_OBJECT('stages', JSON_ARRAY('request', 'sampling', 'sample', 'task', 'environment_trace', 'raw_record', 'review', 'report')),
        JSON_OBJECT('templates', JSON_ARRAY('sampling_record', 'raw_record', 'report')),
-       'active', '用于沉淀环境方向采样、环境记录、原始数据和报告模板差异。', 'admin', NOW(), '', NOW(), b'0', 1
+       'published', '用于沉淀环境方向采样、环境记录、原始数据和报告模板差异。', 'admin', NOW(), '', NOW(), b'0', 1
 FROM `lab_domain_profile`
 WHERE `domain_code` = 'ENVIRONMENT' AND `tenant_id` = 1 AND `deleted` = b'0'
   AND NOT EXISTS (
@@ -704,8 +709,23 @@ WHERE s.`standard_code` IN ('ISO_IEC_17025', 'GB_T_27025', 'CNAS_CL01', 'CMA_202
     WHERE `standard_id` = s.`id` AND `clause_code` = c.`clause_code` AND `tenant_id` = 1 AND `deleted` = b'0'
   );
 
-INSERT INTO `lab_template_version` (`domain_pack_id`, `template_code`, `template_name`, `template_version`, `template_type`, `preview_schema`, `status`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+INSERT INTO `lab_template_version` (`domain_pack_id`, `template_code`, `template_name`, `template_version`, `template_type`, `template_status`, `section_schema`, `output_formats`, `data_source_schema`, `preview_schema`, `status`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
 SELECT `id`, 'REPORT_BASIC_V1', '通用检测报告模板', '1.0', 'report',
+       'published',
+       JSON_ARRAY(
+         JSON_OBJECT('sectionCode', 'cover', 'sectionName', '封面', 'sourceType', 'report', 'visible', true, 'sort', 10),
+         JSON_OBJECT('sectionCode', 'sample', 'sectionName', '样品信息', 'sourceType', 'sample', 'visible', true, 'sort', 20),
+         JSON_OBJECT('sectionCode', 'resultTable', 'sectionName', '检测结果', 'sourceType', 'result_values', 'visible', true, 'sort', 30),
+         JSON_OBJECT('sectionCode', 'conclusion', 'sectionName', '结论', 'sourceType', 'report', 'visible', true, 'sort', 40),
+         JSON_OBJECT('sectionCode', 'sign', 'sectionName', '签发', 'sourceType', 'approval', 'visible', true, 'sort', 50)
+       ),
+       JSON_ARRAY('WORD', 'PDF', 'EXCEL'),
+       JSON_OBJECT(
+         'report', '$.report',
+         'sample', '$.sample',
+         'resultValues', '$.resultValues',
+         'evidenceObjects', '$.equipmentEvidenceSnapshots'
+       ),
        JSON_OBJECT('layout', 'basic-report-preview', 'sections', JSON_ARRAY('cover', 'sample', 'result', 'sign')),
        'active', 'admin', NOW(), '', NOW(), b'0', 1
 FROM `lab_domain_pack`
@@ -714,6 +734,25 @@ WHERE `pack_code` = 'FOOD_ROUTINE_V1' AND `tenant_id` = 1 AND `deleted` = b'0'
     SELECT 1 FROM `lab_template_version` WHERE `template_code` = 'REPORT_BASIC_V1' AND `template_version` = '1.0' AND `tenant_id` = 1 AND `deleted` = b'0'
   )
 LIMIT 1;
+
+UPDATE `lab_template_version`
+SET `template_status` = 'published',
+    `section_schema` = JSON_ARRAY(
+      JSON_OBJECT('sectionCode', 'cover', 'sectionName', '封面', 'sourceType', 'report', 'visible', true, 'sort', 10),
+      JSON_OBJECT('sectionCode', 'sample', 'sectionName', '样品信息', 'sourceType', 'sample', 'visible', true, 'sort', 20),
+      JSON_OBJECT('sectionCode', 'resultTable', 'sectionName', '检测结果', 'sourceType', 'result_values', 'visible', true, 'sort', 30),
+      JSON_OBJECT('sectionCode', 'conclusion', 'sectionName', '结论', 'sourceType', 'report', 'visible', true, 'sort', 40),
+      JSON_OBJECT('sectionCode', 'sign', 'sectionName', '签发', 'sourceType', 'approval', 'visible', true, 'sort', 50)
+    ),
+    `output_formats` = JSON_ARRAY('WORD', 'PDF', 'EXCEL'),
+    `data_source_schema` = JSON_OBJECT(
+      'report', '$.report',
+      'sample', '$.sample',
+      'resultValues', '$.resultValues',
+      'evidenceObjects', '$.equipmentEvidenceSnapshots'
+    ),
+    `status` = 'active'
+WHERE `template_code` = 'REPORT_BASIC_V1' AND `template_version` = '1.0' AND `tenant_id` = 1 AND `deleted` = b'0';
 
 INSERT INTO `lab_template_field_binding` (`template_id`, `field_code`, `field_name`, `source_type`, `source_path`, `required_flag`, `sort`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
 SELECT t.`id`, f.`field_code`, f.`field_name`, f.`source_type`, f.`source_path`, f.`required_flag`, f.`sort`, 'admin', NOW(), '', NOW(), b'0', 1
@@ -854,7 +893,7 @@ INSERT INTO `lab_domain_pack` (`domain_id`, `pack_code`, `pack_name`, `pack_vers
 SELECT `id`, 'INDUSTRIAL_RELIABILITY_V1', '工业品可靠性检测方案包', '1.0', '工业品', '材料、零部件、可靠性与性能检测场景',
        JSON_OBJECT('stages', JSON_ARRAY('request', 'sample', 'task', 'equipment_trace', 'raw_record', 'review', 'report')),
        JSON_OBJECT('templates', JSON_ARRAY('equipment_usage', 'raw_record', 'report')),
-       'draft', '用于沉淀工业品方向的流程、设备、模板和数据采集差异。', 'admin', NOW(), '', NOW(), b'0', 1
+       'published', '用于沉淀工业品方向的流程、设备、模板和数据采集差异。', 'admin', NOW(), '', NOW(), b'0', 1
 FROM `lab_domain_profile`
 WHERE `domain_code` = 'INDUSTRIAL' AND `tenant_id` = 1 AND `deleted` = b'0'
   AND NOT EXISTS (
@@ -1641,7 +1680,8 @@ SET `workflow_schema` = JSON_OBJECT(
       'templates', JSON_ARRAY('sample_label', 'raw_record', 'report'),
       'resultFields', JSON_ARRAY('resultValue', 'resultUnit', 'resultConclusion'),
       'reportSections', JSON_ARRAY('basicInfo', 'sampleInfo', 'resultTable', 'conclusion')
-    )
+    ),
+    `status` = 'published'
 WHERE `pack_code` = 'FOOD_ROUTINE_V1' AND `tenant_id` = 1 AND `deleted` = b'0';
 
 UPDATE `lab_domain_pack`
@@ -1656,7 +1696,8 @@ SET `workflow_schema` = JSON_OBJECT(
       'templates', JSON_ARRAY('sampling_record', 'raw_record', 'report'),
       'resultFields', JSON_ARRAY('samplingPoint', 'resultValue', 'resultUnit', 'resultConclusion'),
       'reportSections', JSON_ARRAY('samplingInfo', 'environmentTrace', 'resultTable', 'conclusion')
-    )
+    ),
+    `status` = 'published'
 WHERE `pack_code` = 'ENVIRONMENT_ROUTINE_V1' AND `tenant_id` = 1 AND `deleted` = b'0';
 
 UPDATE `lab_domain_pack`
@@ -1672,7 +1713,7 @@ SET `workflow_schema` = JSON_OBJECT(
       'resultFields', JSON_ARRAY('equipmentId', 'resultValue', 'resultUnit', 'resultConclusion'),
       'reportSections', JSON_ARRAY('equipmentTrace', 'resultTable', 'deviation', 'conclusion')
     ),
-    `status` = 'active'
+    `status` = 'published'
 WHERE `pack_code` = 'INDUSTRIAL_RELIABILITY_V1' AND `tenant_id` = 1 AND `deleted` = b'0';
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)

@@ -12,6 +12,10 @@ public interface LabTemplateService {
 
     void updateTemplateVersion(@Valid LabTemplateVersionSaveReqVO updateReqVO);
 
+    void publishTemplateVersion(Long id);
+
+    void archiveTemplateVersion(Long id);
+
     void deleteTemplateVersion(Long id);
 
     LabTemplateVersionDO getTemplateVersion(Long id);
