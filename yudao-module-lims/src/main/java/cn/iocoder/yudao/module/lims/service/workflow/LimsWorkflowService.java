@@ -537,6 +537,9 @@ public class LimsWorkflowService {
     }
 
     private String resolveTaskEventType(String status) {
+        if (LimsTaskStatus.SCHEDULED.equals(status)) {
+            return LimsTaskEventType.SCHEDULED;
+        }
         if (LimsTaskStatus.ASSIGNED.equals(status)) {
             return LimsTaskEventType.ASSIGNED;
         }
