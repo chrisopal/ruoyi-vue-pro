@@ -29,7 +29,7 @@ public class LimsTaskLifecycleService {
             Map.entry(LimsTaskStatus.ASSIGNED, Set.of(LimsTaskStatus.READY, LimsTaskStatus.CANCELLED, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.READY, Set.of(LimsTaskStatus.TESTING, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.TESTING, Set.of(LimsTaskStatus.DATA_SUBMITTED, LimsTaskStatus.HOLD)),
-            Map.entry(LimsTaskStatus.DATA_SUBMITTED, Set.of(LimsTaskStatus.REVIEWING, LimsTaskStatus.HOLD)),
+            Map.entry(LimsTaskStatus.DATA_SUBMITTED, Set.of(LimsTaskStatus.REVIEWING, LimsTaskStatus.REWORK, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.REVIEWING, Set.of(LimsTaskStatus.APPROVED, LimsTaskStatus.REWORK, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.REWORK, Set.of(LimsTaskStatus.TESTING, LimsTaskStatus.HOLD)),
             Map.entry(LimsTaskStatus.APPROVED, Set.of(LimsTaskStatus.COMPLETED, LimsTaskStatus.HOLD)),

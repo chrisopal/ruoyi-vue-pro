@@ -1701,6 +1701,67 @@ CREATE TABLE IF NOT EXISTS `lims_task_schedule` (
   KEY `idx_lims_task_schedule_user` (`assigned_user_id`, `planned_start_time`, `planned_end_time`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务排程';
 
+CREATE TABLE IF NOT EXISTS `lims_task_raw_record` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `task_id` bigint NOT NULL COMMENT '检测任务编号',
+  `task_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务编号',
+  `record_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '原始记录类型',
+  `record_json` json NULL COMMENT '原始记录内容',
+  `attachment_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '附件地址',
+  `version_no` bigint NOT NULL DEFAULT 1 COMMENT '版本号',
+  `submitted_by` bigint NULL DEFAULT NULL COMMENT '提交人',
+  `submitted_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '提交时间',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'submitted' COMMENT '记录状态',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lims_task_raw_record_task` (`task_id`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务原始记录';
+
+CREATE TABLE IF NOT EXISTS `lims_task_qc_record` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `task_id` bigint NOT NULL COMMENT '检测任务编号',
+  `task_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务编号',
+  `qc_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '质控类型',
+  `qc_rule_snapshot` json NULL COMMENT '质控规则快照',
+  `qc_data_json` json NULL COMMENT '质控数据',
+  `qc_result` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '质控结果',
+  `review_comment` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '质控意见',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lims_task_qc_record_task` (`task_id`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务质控记录';
+
+CREATE TABLE IF NOT EXISTS `lims_task_review` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `task_id` bigint NOT NULL COMMENT '检测任务编号',
+  `task_no` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '任务编号',
+  `review_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '复核类型',
+  `review_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '复核结果',
+  `reviewer_id` bigint NULL DEFAULT NULL COMMENT '复核人',
+  `review_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '复核时间',
+  `comment` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '复核意见',
+  `snapshot_hash` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '快照哈希',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lims_task_review_task` (`task_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_review_status` (`review_status`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务技术复核';
+
 CREATE TABLE IF NOT EXISTS `lims_task_event_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `task_id` bigint NOT NULL COMMENT '检测任务编号',

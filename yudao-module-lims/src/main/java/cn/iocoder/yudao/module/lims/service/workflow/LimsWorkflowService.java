@@ -96,6 +96,8 @@ public class LimsWorkflowService {
     @Resource
     private LimsTaskScheduleService taskScheduleService;
     @Resource
+    private LimsTaskRecordService taskRecordService;
+    @Resource
     private ObjectMapper objectMapper;
 
     public Long createRequest(LimsWorkflowSaveReqVO createReqVO) {
@@ -269,6 +271,26 @@ public class LimsWorkflowService {
 
     public void markTaskReady(Long id) {
         taskScheduleService.markReady(id);
+    }
+
+    public Long submitRawRecord(LimsWorkflowSaveReqVO reqVO) {
+        return taskRecordService.submitRawRecord(reqVO);
+    }
+
+    public Long submitQcRecord(LimsWorkflowSaveReqVO reqVO) {
+        return taskRecordService.submitQcRecord(reqVO);
+    }
+
+    public void approveTaskReview(LimsWorkflowSaveReqVO reqVO) {
+        taskRecordService.approveReview(reqVO);
+    }
+
+    public void rejectTaskReview(LimsWorkflowSaveReqVO reqVO) {
+        taskRecordService.rejectReview(reqVO);
+    }
+
+    public List<LimsWorkflowRespVO> getTaskReviews(Long taskId) {
+        return BeanUtils.toBean(taskRecordService.listReviewsByTaskId(taskId), LimsWorkflowRespVO.class);
     }
 
     public PageResult<LimsWorkflowRespVO> getTaskSchedulePage(LimsWorkflowPageReqVO pageReqVO) {

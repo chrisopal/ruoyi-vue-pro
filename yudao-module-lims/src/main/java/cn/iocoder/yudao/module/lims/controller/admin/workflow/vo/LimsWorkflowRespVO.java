@@ -69,6 +69,10 @@ public class LimsWorkflowRespVO {
     private String reviewStatus;
     private Boolean reportEligible;
     private String blockReason;
+    private String reviewType;
+    private String reviewTime;
+    private String comment;
+    private String snapshotHash;
 
     private Long taskId;
     private String resultNo;

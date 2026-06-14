@@ -73,6 +73,22 @@ class LimsTaskLifecycleServiceTest extends BaseMockitoUnitTest {
                 10L, LimsTaskStatus.REVIEWING, LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null));
     }
 
+    @Test
+    void transition_shouldAllowDataSubmittedTaskToReworkForRejectedQc() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.DATA_SUBMITTED));
+
+        service.transition(10L, LimsTaskStatus.REWORK, LimsTaskEventType.REJECTED, "QC未通过", null);
+
+        verify(taskMapper).updateById(argThat((LimsTestTaskDO updated) ->
+                LimsTaskStatus.REWORK.equals(updated.getTaskStatus())
+                        && LimsTaskStatus.REWORK.equals(updated.getStatus())));
+        verify(eventLogMapper).insert(argThat((LimsTaskEventLogDO event) ->
+                Long.valueOf(10L).equals(event.getTaskId())
+                        && LimsTaskEventType.REJECTED.equals(event.getEventType())
+                        && LimsTaskStatus.DATA_SUBMITTED.equals(event.getFromStatus())
+                        && LimsTaskStatus.REWORK.equals(event.getToStatus())));
+    }
+
     private static LimsTestTaskDO task(Long id, String status) {
         LimsTestTaskDO task = new LimsTestTaskDO();
         task.setId(id);

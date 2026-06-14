@@ -50,7 +50,7 @@
       <el-table-column align="center" label="状态" min-width="110" prop="status">
         <template #default="scope"><el-tag>{{ scope.row.status || '-' }}</el-tag></template>
       </el-table-column>
-      <el-table-column align="center" fixed="right" label="操作" width="300">
+      <el-table-column align="center" fixed="right" label="操作" min-width="420">
         <template #default="scope">
           <el-button v-for="action in rowActions" :key="action.label" link type="primary" @click="runAction(action, scope.row)">{{ action.label }}</el-button>
           <el-button v-hasPermi="permissionOf('update')" link type="primary" @click="openForm('update', scope.row.id)">编辑</el-button>
@@ -79,6 +79,25 @@
       <el-button @click="formVisible = false">取 消</el-button>
     </template>
   </el-dialog>
+
+  <el-dialog v-model="actionFormVisible" :title="actionFormTitle" width="760px">
+    <el-form :model="actionFormData" label-width="120px">
+      <el-row :gutter="16">
+        <el-col v-for="field in actionFormFields" :key="field.prop" :span="field.span || 12">
+          <el-form-item v-if="!field.hidden" :label="field.label" :prop="field.prop">
+            <el-select v-if="field.type === 'select'" v-model="actionFormData[field.prop]" class="w-1/1" filterable clearable>
+              <el-option v-for="item in field.options || []" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
+            <el-input v-else v-model="actionFormData[field.prop]" :rows="field.type === 'textarea' ? 4 : undefined" :type="field.type || 'text'" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+    </el-form>
+    <template #footer>
+      <el-button :disabled="actionFormLoading" type="primary" @click="submitActionForm">确 定</el-button>
+      <el-button @click="actionFormVisible = false">取 消</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -87,8 +106,15 @@ import { LimsWorkflowApi, LimsWorkflowVO } from '@/api/lims/workflow'
 defineOptions({ name: 'LimsWorkflowPage' })
 
 interface FieldOption { label: string; value: string | number }
-interface FieldConfig { prop: string; label: string; type?: string; display?: string; span?: number; table?: boolean; options?: FieldOption[] }
-interface ActionConfig { label: string; url: string; method?: 'post' | 'put' }
+interface FieldConfig { prop: string; label: string; type?: string; display?: string; span?: number; table?: boolean; hidden?: boolean; options?: readonly FieldOption[] }
+interface ActionConfig {
+  label: string
+  url: string
+  method?: 'post' | 'put'
+  fields?: readonly FieldConfig[]
+  formTitle?: string
+  defaults?: LimsWorkflowVO | ((row: LimsWorkflowVO) => LimsWorkflowVO)
+}
 interface ReportOutput { format?: string; fileUrl?: string }
 
 const props = defineProps<{
@@ -116,6 +142,10 @@ const formVisible = ref(false)
 const formLoading = ref(false)
 const formType = ref('')
 const formData = ref<LimsWorkflowVO>({})
+const actionFormVisible = ref(false)
+const actionFormLoading = ref(false)
+const actionFormConfig = ref<ActionConfig>()
+const actionFormData = ref<LimsWorkflowVO>({})
 
 const title = computed(() => props.title)
 const subtitle = computed(() => props.subtitle)
@@ -124,6 +154,8 @@ const noLabel = computed(() => props.noLabel)
 const nameField = computed(() => props.nameField)
 const nameLabel = computed(() => props.nameLabel)
 const rowActions = computed(() => props.rowActions || [])
+const actionFormTitle = computed(() => actionFormConfig.value?.formTitle || actionFormConfig.value?.label || '操作')
+const actionFormFields = computed(() => actionFormConfig.value?.fields || [])
 const visibleFields = computed(() => props.fields.filter((field) => field.table !== false && field.prop !== props.noField && field.prop !== props.nameField && field.prop !== 'status').slice(0, 6))
 const formFields = computed(() => {
   const core: FieldConfig[] = [{ prop: props.noField, label: props.noLabel }, { prop: props.nameField, label: props.nameLabel }]
@@ -183,10 +215,33 @@ const handleDelete = async (id: number) => {
 }
 const runAction = async (action: ActionConfig, row: LimsWorkflowVO) => {
   if (!row.id) return
+  if (action.fields?.length) {
+    actionFormConfig.value = action
+    actionFormData.value = resolveActionDefaults(action, row)
+    actionFormVisible.value = true
+    return
+  }
   if (action.method === 'post') await LimsWorkflowApi.postAction(action.url, row.id)
   else await LimsWorkflowApi.putAction(action.url, row.id)
   message.success('操作成功')
   await getList()
+}
+const resolveActionDefaults = (action: ActionConfig, row: LimsWorkflowVO) => {
+  if (typeof action.defaults === 'function') return action.defaults(row)
+  return { id: row.id, taskId: row.id, ...(action.defaults || {}) }
+}
+const submitActionForm = async () => {
+  if (!actionFormConfig.value) return
+  actionFormLoading.value = true
+  try {
+    if (actionFormConfig.value.method === 'post') await LimsWorkflowApi.postBody(actionFormConfig.value.url, actionFormData.value)
+    else await LimsWorkflowApi.putBody(actionFormConfig.value.url, actionFormData.value)
+    message.success('操作成功')
+    actionFormVisible.value = false
+    await getList()
+  } finally {
+    actionFormLoading.value = false
+  }
 }
 const parseReportOutputs = (value: unknown): ReportOutput[] => {
   if (!value) return []

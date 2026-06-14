@@ -2,10 +2,12 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskReviewDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
@@ -72,6 +74,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsTaskLifecycleService taskLifecycleService;
     @Mock
     private LimsReportEligibilityService reportEligibilityService;
+    @Mock
+    private LimsTaskRecordService taskRecordService;
     @Spy
     private ReportDraftPlanFactory reportDraftPlanFactory = new ReportDraftPlanFactory(new ObjectMapper());
     @Spy
@@ -246,6 +250,64 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && Boolean.TRUE.equals(updated.getReportEligible())));
         verify(taskLifecycleService).transition(20L, LimsTaskStatus.APPROVED,
                 LimsTaskEventType.APPROVED, "检测结果审核通过", null);
+    }
+
+    @Test
+    void submitRawRecord_shouldDelegateToTaskRecordService() {
+        LimsWorkflowSaveReqVO req = new LimsWorkflowSaveReqVO();
+        req.setTaskId(20L);
+
+        workflowService.submitRawRecord(req);
+
+        verify(taskRecordService).submitRawRecord(req);
+    }
+
+    @Test
+    void submitQcRecord_shouldDelegateToTaskRecordService() {
+        LimsWorkflowSaveReqVO req = new LimsWorkflowSaveReqVO();
+        req.setTaskId(20L);
+
+        workflowService.submitQcRecord(req);
+
+        verify(taskRecordService).submitQcRecord(req);
+    }
+
+    @Test
+    void approveTaskReview_shouldDelegateToTaskRecordService() {
+        LimsWorkflowSaveReqVO req = new LimsWorkflowSaveReqVO();
+        req.setTaskId(20L);
+
+        workflowService.approveTaskReview(req);
+
+        verify(taskRecordService).approveReview(req);
+    }
+
+    @Test
+    void rejectTaskReview_shouldDelegateToTaskRecordService() {
+        LimsWorkflowSaveReqVO req = new LimsWorkflowSaveReqVO();
+        req.setTaskId(20L);
+
+        workflowService.rejectTaskReview(req);
+
+        verify(taskRecordService).rejectReview(req);
+    }
+
+    @Test
+    void getTaskReviews_shouldDelegateToTaskRecordService() {
+        LimsTaskReviewDO review = new LimsTaskReviewDO();
+        review.setId(1L);
+        review.setTaskId(20L);
+        review.setReviewType("technical");
+        review.setReviewStatus(LimsTaskReviewStatus.APPROVED);
+        when(taskRecordService.listReviewsByTaskId(20L)).thenReturn(List.of(review));
+
+        List<LimsWorkflowRespVO> responses = workflowService.getTaskReviews(20L);
+
+        assertEquals(1, responses.size());
+        assertEquals(1L, responses.get(0).getId());
+        assertEquals(20L, responses.get(0).getTaskId());
+        assertEquals("technical", responses.get(0).getReviewType());
+        assertEquals(LimsTaskReviewStatus.APPROVED, responses.get(0).getReviewStatus());
     }
 
     @Test

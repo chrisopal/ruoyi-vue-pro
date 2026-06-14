@@ -68,6 +68,19 @@ public class LimsWorkflowSaveReqVO {
     private String reviewStatus;
     private Boolean reportEligible;
     private String blockReason;
+    private String recordType;
+    private String recordJson;
+    private String attachmentUrl;
+    private Long versionNo;
+    private Long submittedBy;
+    private String submittedTime;
+    private String qcType;
+    private String qcRuleSnapshot;
+    private String qcDataJson;
+    private String qcResult;
+    private String reviewComment;
+    private String reviewType;
+    private String snapshotHash;
 
     private Long taskId;
     private String resultNo;

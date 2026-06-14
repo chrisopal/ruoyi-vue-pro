@@ -14,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
 
 @Tag(name = "管理后台 - LIMS 检测业务闭环")
@@ -200,6 +202,43 @@ public class LimsWorkflowController {
     public CommonResult<Boolean> markTaskReady(@RequestParam("id") Long id) {
         workflowService.markTaskReady(id);
         return success(true);
+    }
+
+    @PostMapping("/lims/task/raw-record")
+    @Operation(summary = "提交检测任务原始记录")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Long> submitRawRecord(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
+        return success(workflowService.submitRawRecord(reqVO));
+    }
+
+    @PostMapping("/lims/task/qc-record")
+    @Operation(summary = "提交检测任务质控记录")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Long> submitQcRecord(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
+        return success(workflowService.submitQcRecord(reqVO));
+    }
+
+    @PutMapping("/lims/task/approve")
+    @Operation(summary = "技术复核通过检测任务")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Boolean> approveTaskReview(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
+        workflowService.approveTaskReview(reqVO);
+        return success(true);
+    }
+
+    @PutMapping("/lims/task/reject")
+    @Operation(summary = "技术复核驳回检测任务")
+    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    public CommonResult<Boolean> rejectTaskReview(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
+        workflowService.rejectTaskReview(reqVO);
+        return success(true);
+    }
+
+    @GetMapping("/lims/task/reviews")
+    @Operation(summary = "获得检测任务技术复核记录")
+    @PreAuthorize("@ss.hasPermission('lims:task:query')")
+    public CommonResult<List<LimsWorkflowRespVO>> getTaskReviews(@RequestParam("taskId") Long taskId) {
+        return success(workflowService.getTaskReviews(taskId));
     }
 
     @GetMapping("/lims/task/schedule/page")
