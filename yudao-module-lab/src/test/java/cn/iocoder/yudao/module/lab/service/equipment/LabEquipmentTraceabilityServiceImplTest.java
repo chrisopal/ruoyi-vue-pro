@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.lab.dal.mysql.standard.LabStandardClauseMapper;
 import cn.iocoder.yudao.module.lab.service.evidencelink.LabEvidenceLinkService;
 import cn.iocoder.yudao.module.lab.service.evidenceobject.LabEvidenceObjectService;
 import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -91,6 +93,24 @@ class LabEquipmentTraceabilityServiceImplTest extends BaseMockitoUnitTest {
                         && "EQ-100".equals(link.getLinkedBizNo())
                         && Long.valueOf(64L).equals(link.getClauseId())
                         && "equipment".equals(link.getClauseCategory())));
+        verify(equipmentAssetMapper).update(eq(null), any(UpdateWrapper.class));
+    }
+
+    @Test
+    void updateEquipmentTraceability_shouldSyncAssetCalibrationStatus() {
+        when(traceabilityMapper.selectById(1L)).thenReturn(evidence(1L, "CERT-001", "2099-12-31", "valid"));
+        when(equipmentAssetMapper.selectById(100L)).thenReturn(equipmentAsset());
+
+        LabQualityRecordSaveReqVO reqVO = saveReq(100L, "CERT-NEW", "valid");
+        reqVO.setId(1L);
+
+        service.updateEquipmentTraceability(reqVO);
+
+        verify(traceabilityMapper).updateById(argThat((LabEquipmentTraceabilityDO evidence) ->
+                Long.valueOf(1L).equals(evidence.getId())
+                        && "valid".equals(evidence.getStatus())
+                        && "2099-12-31".equals(evidence.getValidTo())));
+        verify(equipmentAssetMapper).update(eq(null), any(UpdateWrapper.class));
     }
 
     @Test

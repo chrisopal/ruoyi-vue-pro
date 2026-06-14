@@ -97,8 +97,11 @@
         prop="createTime"
         width="180"
       />
-      <el-table-column align="center" fixed="right" label="操作" width="150">
+      <el-table-column align="center" fixed="right" label="操作" width="210">
         <template #default="scope">
+          <el-button link type="primary" @click="openEvidenceDrawer(scope.row)">
+            证据链
+          </el-button>
           <el-button
             v-hasPermi="['lab:equipment-asset:update']"
             link
@@ -243,11 +246,201 @@
       <el-button @click="formVisible = false">取 消</el-button>
     </template>
   </el-dialog>
+
+  <el-drawer
+    v-model="evidenceDrawerVisible"
+    :title="evidenceDrawerTitle"
+    destroy-on-close
+    size="880px"
+  >
+    <div v-if="selectedEquipment" class="flex flex-col gap-16px">
+      <el-descriptions :column="2" border size="small">
+        <el-descriptions-item label="设备编码">{{ selectedEquipment.equipmentCode }}</el-descriptions-item>
+        <el-descriptions-item label="设备名称">{{ selectedEquipment.equipmentName }}</el-descriptions-item>
+        <el-descriptions-item label="检测方向">{{ selectedEquipment.domainCode || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="校准有效期">
+          {{ selectedEquipment.calibrationValidUntil || '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="能力范围" :span="2">
+          {{ selectedEquipment.capabilityScope || '-' }}
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-15px font-600">当前有效校准证据</div>
+        </div>
+        <el-button
+          v-hasPermi="['lab:equipment-traceability:create']"
+          plain
+          type="primary"
+          @click="openCalibrationForm"
+        >
+          <Icon class="mr-5px" icon="ep:plus" />
+          新增校准证据
+        </el-button>
+      </div>
+
+      <el-table v-loading="evidenceLoading" :data="calibrationEvidenceList" border size="small">
+        <el-table-column label="证书编号" min-width="140" prop="certificateNo" />
+        <el-table-column label="校准机构" min-width="160" prop="calibrationOrg" show-overflow-tooltip />
+        <el-table-column label="校准日期" min-width="110" prop="calibrationDate" />
+        <el-table-column label="有效期至" min-width="110" prop="validTo" />
+        <el-table-column label="结果" min-width="90" prop="result" />
+        <el-table-column label="证书文件" min-width="140">
+          <template #default="scope">
+            <el-link
+              v-if="scope.row.certificateFileUrl"
+              :href="scope.row.certificateFileUrl"
+              target="_blank"
+              type="primary"
+            >
+              查看
+            </el-link>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="90">
+          <template #default="scope">
+            <el-tag :type="scope.row.effective ? 'success' : 'info'">
+              {{ scope.row.effective ? '有效' : scope.row.status || '-' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div>
+        <div class="mb-8px text-15px font-600">设备证据链映射</div>
+        <el-table v-loading="evidenceLoading" :data="evidenceLinkList" border size="small">
+          <el-table-column label="证据" min-width="230">
+            <template #default="scope">
+              <div>{{ scope.row.evidenceCode || '-' }}</div>
+              <div class="mt-2px text-12px color-#6b7280 truncate">
+                {{ scope.row.evidenceName || '-' }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="映射关系" min-width="210">
+            <template #default="scope">
+              <div>{{ scope.row.sourceObjectNo || '-' }}</div>
+              <div class="mt-4px flex gap-6px">
+                <el-tag size="small">{{ scope.row.clauseCategory || '-' }}</el-tag>
+                <el-tag size="small" type="success">{{ scope.row.linkStatus || '-' }}</el-tag>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="证据哈希" min-width="150">
+            <template #default="scope">{{ formatHash(scope.row.evidenceHash) }}</template>
+          </el-table-column>
+          <el-table-column label="关联原因" min-width="210" prop="linkReason" show-overflow-tooltip />
+        </el-table>
+      </div>
+    </div>
+  </el-drawer>
+
+  <el-dialog v-model="calibrationFormVisible" title="新增校准证据" width="720px">
+    <el-form
+      ref="calibrationFormRef"
+      :model="calibrationFormData"
+      :rules="calibrationFormRules"
+      label-width="112px"
+    >
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="设备ID" prop="equipmentId">
+            <el-input-number
+              v-model="calibrationFormData.equipmentId"
+              :disabled="true"
+              :min="1"
+              class="w-1/1"
+              controls-position="right"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="证书编号" prop="certificateNo">
+            <el-input v-model="calibrationFormData.certificateNo" maxlength="128" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="校准机构" prop="calibrationOrg">
+            <el-input v-model="calibrationFormData.calibrationOrg" maxlength="128" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="溯源类型" prop="traceabilityType">
+            <el-select v-model="calibrationFormData.traceabilityType" class="w-1/1">
+              <el-option label="校准" value="calibration" />
+              <el-option label="检定" value="verification" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="校准日期" prop="calibrationDate">
+            <el-date-picker
+              v-model="calibrationFormData.calibrationDate"
+              class="w-1/1"
+              type="date"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="有效期至" prop="validTo">
+            <el-date-picker
+              v-model="calibrationFormData.validTo"
+              class="w-1/1"
+              type="date"
+              value-format="YYYY-MM-DD"
+            />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16">
+        <el-col :span="12">
+          <el-form-item label="结果" prop="result">
+            <el-select v-model="calibrationFormData.result" class="w-1/1">
+              <el-option label="合格" value="合格" />
+              <el-option label="限用" value="限用" />
+              <el-option label="不合格" value="不合格" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="不确定度" prop="uncertainty">
+            <el-input v-model="calibrationFormData.uncertainty" maxlength="128" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+      <el-form-item label="证书文件" prop="certificateFileUrl">
+        <el-input v-model="calibrationFormData.certificateFileUrl" maxlength="512" />
+      </el-form-item>
+      <el-form-item label="溯源链" prop="traceabilityChain">
+        <el-input v-model="calibrationFormData.traceabilityChain" rows="3" type="textarea" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button :disabled="calibrationFormLoading" type="primary" @click="submitCalibrationForm">
+        确 定
+      </el-button>
+      <el-button @click="calibrationFormVisible = false">取 消</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script lang="ts" setup>
 import { dateFormatter } from '@/utils/formatTime'
 import { LabEquipmentAssetApi, LabEquipmentAssetVO } from '@/api/lab/equipment-asset'
+import { LabEvidenceLinkApi, LabEvidenceLinkVO } from '@/api/lab/evidence-link'
+import {
+  LabEquipmentCalibrationEvidenceVO,
+  LabQualityApi,
+  LabQualityRecordVO
+} from '@/api/lab/quality'
 
 defineOptions({ name: 'LabEquipmentAsset' })
 
@@ -369,6 +562,97 @@ const handleDelete = async (id: number) => {
   await LabEquipmentAssetApi.deleteEquipmentAsset(id)
   message.success(t('common.delSuccess'))
   await getList()
+}
+
+const evidenceDrawerVisible = ref(false)
+const evidenceLoading = ref(false)
+const selectedEquipment = ref<LabEquipmentAssetVO>()
+const calibrationEvidenceList = ref<LabEquipmentCalibrationEvidenceVO[]>([])
+const evidenceLinkList = ref<LabEvidenceLinkVO[]>([])
+const evidenceDrawerTitle = computed(() => {
+  return selectedEquipment.value
+    ? `设备证据链 - ${selectedEquipment.value.equipmentCode}`
+    : '设备证据链'
+})
+
+const openEvidenceDrawer = async (equipment: LabEquipmentAssetVO) => {
+  selectedEquipment.value = equipment
+  evidenceDrawerVisible.value = true
+  await refreshEvidenceChain()
+}
+
+const refreshEvidenceChain = async () => {
+  if (!selectedEquipment.value?.id) {
+    calibrationEvidenceList.value = []
+    evidenceLinkList.value = []
+    return
+  }
+  evidenceLoading.value = true
+  try {
+    const [calibrationEvidence, evidenceLinkPage] = await Promise.all([
+      LabQualityApi.getCurrentEquipmentCalibrationEvidence(selectedEquipment.value.id),
+      LabEvidenceLinkApi.getEvidenceLinkPage({
+        pageNo: 1,
+        pageSize: 50,
+        linkedBizType: 'equipment_asset',
+        linkedBizId: selectedEquipment.value.id
+      })
+    ])
+    calibrationEvidenceList.value = calibrationEvidence
+    evidenceLinkList.value = evidenceLinkPage.list || []
+  } finally {
+    evidenceLoading.value = false
+  }
+}
+
+const formatHash = (hash?: string) => {
+  if (!hash) return '-'
+  return hash.length > 16 ? `${hash.slice(0, 16)}...` : hash
+}
+
+const calibrationFormVisible = ref(false)
+const calibrationFormLoading = ref(false)
+const calibrationFormRef = ref()
+const calibrationFormData = ref<LabQualityRecordVO>({})
+const calibrationFormRules = reactive({
+  equipmentId: [{ required: true, message: '设备不能为空', trigger: 'change' }],
+  certificateNo: [{ required: true, message: '证书编号不能为空', trigger: 'blur' }],
+  calibrationOrg: [{ required: true, message: '校准机构不能为空', trigger: 'blur' }],
+  calibrationDate: [{ required: true, message: '校准日期不能为空', trigger: 'change' }],
+  validTo: [{ required: true, message: '有效期不能为空', trigger: 'change' }],
+  result: [{ required: true, message: '结果不能为空', trigger: 'change' }]
+})
+
+const openCalibrationForm = () => {
+  if (!selectedEquipment.value?.id) return
+  calibrationFormData.value = {
+    equipmentId: selectedEquipment.value.id,
+    traceabilityType: 'calibration',
+    certificateNo: '',
+    calibrationOrg: '',
+    calibrationDate: '',
+    validTo: '',
+    result: '合格',
+    uncertainty: '',
+    certificateFileUrl: '',
+    traceabilityChain: '',
+    status: 'valid'
+  }
+  calibrationFormVisible.value = true
+  nextTick(() => calibrationFormRef.value?.clearValidate())
+}
+
+const submitCalibrationForm = async () => {
+  await calibrationFormRef.value.validate()
+  calibrationFormLoading.value = true
+  try {
+    await LabQualityApi.create('/lab/equipment-traceability', calibrationFormData.value)
+    message.success('校准证据已登记，设备主档有效期已同步')
+    calibrationFormVisible.value = false
+    await Promise.all([refreshEvidenceChain(), getList()])
+  } finally {
+    calibrationFormLoading.value = false
+  }
 }
 
 const resetForm = () => {

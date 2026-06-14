@@ -19,6 +19,7 @@ public interface LabEvidenceLinkMapper extends BaseMapperX<LabEvidenceLinkDO> {
                 .eqIfPresent(LabEvidenceLinkDO::getSourceObject, reqVO.getSourceObject())
                 .likeIfPresent(LabEvidenceLinkDO::getSourceObjectNo, reqVO.getSourceObjectNo())
                 .eqIfPresent(LabEvidenceLinkDO::getLinkedBizType, reqVO.getLinkedBizType())
+                .eqIfPresent(LabEvidenceLinkDO::getLinkedBizId, reqVO.getLinkedBizId())
                 .likeIfPresent(LabEvidenceLinkDO::getLinkedBizNo, reqVO.getLinkedBizNo())
                 .eqIfPresent(LabEvidenceLinkDO::getClauseCategory, reqVO.getClauseCategory())
                 .betweenIfPresent(LabEvidenceLinkDO::getCreateTime, reqVO.getCreateTime())

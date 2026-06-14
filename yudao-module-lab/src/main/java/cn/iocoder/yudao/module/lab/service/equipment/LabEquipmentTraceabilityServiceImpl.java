@@ -37,6 +37,9 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
     private static final String TRACEABILITY_TYPE_CALIBRATION = "calibration";
     private static final String STATUS_VALID = "valid";
     private static final String STATUS_DRAFT = "draft";
+    private static final String STATUS_ENABLED = "enabled";
+    private static final String STATUS_EXPIRED = "expired";
+    private static final String STATUS_DISABLED = "disabled";
     private static final String EVIDENCE_TYPE_EQUIPMENT_CERTIFICATE = "EQUIPMENT_CERTIFICATE";
     private static final String EVIDENCE_SOURCE_OBJECT = "lab_equipment_traceability";
     private static final String BUSINESS_DOMAIN_EQUIPMENT = "equipment";
@@ -61,17 +64,19 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
         normalizeEvidence(evidence);
         traceabilityMapper.insert(evidence);
         createCalibrationEvidenceChain(equipmentAsset, evidence);
+        syncEquipmentCalibrationStatus(equipmentAsset, evidence);
         return evidence.getId();
     }
 
     @Override
     public void updateEquipmentTraceability(LabQualityRecordSaveReqVO updateReqVO) {
         validateEquipmentTraceabilityExists(updateReqVO.getId());
-        validateEquipmentAssetExists(updateReqVO.getEquipmentId());
+        LabEquipmentAssetDO equipmentAsset = validateEquipmentAssetExists(updateReqVO.getEquipmentId());
 
         LabEquipmentTraceabilityDO evidence = BeanUtils.toBean(updateReqVO, LabEquipmentTraceabilityDO.class);
         normalizeEvidence(evidence);
         traceabilityMapper.updateById(evidence);
+        syncEquipmentCalibrationStatus(equipmentAsset, evidence);
     }
 
     @Override
@@ -166,6 +171,20 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
         link.setLinkReason("设备校准证书支撑 CNAS/CMA 设备溯源条款");
         link.setRemark("由设备校准记录自动生成");
         evidenceLinkService.createEvidenceLink(link);
+    }
+
+    private void syncEquipmentCalibrationStatus(LabEquipmentAssetDO equipmentAsset, LabEquipmentTraceabilityDO evidence) {
+        LocalDate validTo = parseLocalDate(evidence.getValidTo());
+        if (validTo == null || !STATUS_VALID.equalsIgnoreCase(evidence.getStatus())) {
+            return;
+        }
+        UpdateWrapper<LabEquipmentAssetDO> update = new UpdateWrapper<LabEquipmentAssetDO>()
+                .eq("id", equipmentAsset.getId())
+                .set("calibration_valid_until", validTo);
+        if (!STATUS_DISABLED.equalsIgnoreCase(equipmentAsset.getStatus())) {
+            update.set("status", validTo.isBefore(LocalDate.now()) ? STATUS_EXPIRED : STATUS_ENABLED);
+        }
+        equipmentAssetMapper.update(null, update);
     }
 
     private LabEvidenceObjectDO buildCalibrationEvidenceObject(LabEquipmentAssetDO equipmentAsset, LabEquipmentTraceabilityDO evidence) {

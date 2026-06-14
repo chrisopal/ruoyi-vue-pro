@@ -32,6 +32,9 @@ public class LabEvidenceLinkPageReqVO extends PageParam {
     @Schema(description = "关联业务类型", example = "review_package")
     private String linkedBizType;
 
+    @Schema(description = "关联业务编号", example = "1")
+    private Long linkedBizId;
+
     @Schema(description = "关联业务单号", example = "RP-MVP-001")
     private String linkedBizNo;
 
