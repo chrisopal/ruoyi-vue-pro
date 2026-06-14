@@ -54,6 +54,7 @@ public class LimsTaskScheduleService {
         task.setAssignedUserId(command.assignedUserId());
         task.setPlannedStartTime(command.plannedStartTime());
         task.setPlannedEndTime(command.plannedEndTime());
+        task.setDurationMinutes(command.durationMinutes());
         task.setScheduleStatus(LimsTaskScheduleStatus.SCHEDULED);
         task.setTaskStatus(LimsTaskStatus.SCHEDULED);
         task.setStatus(LimsTaskStatus.SCHEDULED);
@@ -72,6 +73,7 @@ public class LimsTaskScheduleService {
         reqVO.setAssignedUserId(task.getAssignedUserId());
         reqVO.setPlannedStartTime(task.getPlannedStartTime());
         reqVO.setPlannedEndTime(task.getPlannedEndTime());
+        reqVO.setDurationMinutes(task.getDurationMinutes());
         return schedule(reqVO);
     }
 
@@ -91,7 +93,11 @@ public class LimsTaskScheduleService {
         String plannedEndTime = StringUtils.hasText(reqVO.getPlannedEndTime()) ? reqVO.getPlannedEndTime()
                 : StringUtils.hasText(task.getPlannedEndTime()) ? task.getPlannedEndTime()
                 : parse(plannedStartTime).plusMinutes(task.getDurationMinutes() == null ? 60L : Math.max(task.getDurationMinutes(), 1L)).format(FORMATTER);
-        return new ScheduleCommand(task.getId(), equipmentId, assignedUserId, plannedStartTime, plannedEndTime);
+        Long durationMinutes = reqVO.getDurationMinutes() == null ? task.getDurationMinutes() : Math.max(reqVO.getDurationMinutes(), 1L);
+        if (durationMinutes == null) {
+            durationMinutes = java.time.Duration.between(parse(plannedStartTime), parse(plannedEndTime)).toMinutes();
+        }
+        return new ScheduleCommand(task.getId(), equipmentId, assignedUserId, plannedStartTime, plannedEndTime, Math.max(durationMinutes, 1L));
     }
 
     private void assertNoConflicts(ScheduleCommand command) {
@@ -132,7 +138,7 @@ public class LimsTaskScheduleService {
     }
 
     private record ScheduleCommand(Long taskId, Long equipmentId, Long assignedUserId,
-                                   String plannedStartTime, String plannedEndTime) {
+                                   String plannedStartTime, String plannedEndTime, Long durationMinutes) {
     }
 
 }

@@ -1,146 +1,293 @@
 <template>
-  <LimsWorkflowPage
-    title="检测任务"
-    subtitle="由场景方案包的检测项目配置自动生成，也支持手工补充"
-    base-url="/lims/task"
-    permission="lims:task"
-    no-field="taskNo"
-    no-label="任务编号"
-    name-field="taskName"
-    name-label="任务名称"
-    :fields="fields"
-    :row-actions="rowActions"
-    :defaults="{ status: 'assigned' }"
-  />
+  <ContentWrap>
+    <div class="mb-16px flex items-center justify-between gap-16px">
+      <div>
+        <div class="text-16px font-600">检测任务</div>
+        <div class="mt-4px text-12px color-#909399">
+          按任务生命周期管理排程、就绪、执行记录、QC 和技术复核
+        </div>
+      </div>
+      <el-button @click="getList">
+        <Icon class="mr-5px" icon="ep:refresh" />
+        刷新
+      </el-button>
+    </div>
+
+    <el-form
+      ref="queryFormRef"
+      :inline="true"
+      :model="queryParams"
+      class="-mb-15px"
+      label-width="88px"
+    >
+      <el-form-item label="关键字" prop="keyword">
+        <el-input
+          v-model="queryParams.keyword"
+          class="!w-220px"
+          clearable
+          placeholder="任务/需求/样品"
+          @keyup.enter="handleQuery"
+        />
+      </el-form-item>
+      <el-form-item label="任务状态" prop="taskStatus">
+        <el-select v-model="queryParams.taskStatus" class="!w-160px" clearable placeholder="全部">
+          <el-option
+            v-for="item in TASK_STATUS_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="排程状态" prop="scheduleStatus">
+        <el-select v-model="queryParams.scheduleStatus" class="!w-160px" clearable placeholder="全部">
+          <el-option
+            v-for="item in SCHEDULE_STATUS_OPTIONS"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="执行人" prop="assignedUserId">
+        <el-input-number
+          v-model="queryParams.assignedUserId"
+          :min="1"
+          class="!w-150px"
+          controls-position="right"
+        />
+      </el-form-item>
+      <el-form-item label="设备" prop="equipmentId">
+        <el-input-number
+          v-model="queryParams.equipmentId"
+          :min="1"
+          class="!w-150px"
+          controls-position="right"
+        />
+      </el-form-item>
+      <el-form-item label="计划开始">
+        <el-date-picker
+          v-model="plannedStartRange"
+          class="!w-330px"
+          end-placeholder="结束"
+          format="YYYY-MM-DD HH:mm:ss"
+          range-separator="-"
+          start-placeholder="开始"
+          type="datetimerange"
+          value-format="YYYY-MM-DD HH:mm:ss"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button @click="handleQuery">
+          <Icon class="mr-5px" icon="ep:search" />
+          搜索
+        </el-button>
+        <el-button @click="resetQuery">
+          <Icon class="mr-5px" icon="ep:refresh" />
+          重置
+        </el-button>
+      </el-form-item>
+    </el-form>
+  </ContentWrap>
+
+  <ContentWrap>
+    <el-table v-loading="loading" :data="list" row-key="id">
+      <el-table-column align="center" fixed="left" label="任务编号" min-width="150" prop="taskNo" show-overflow-tooltip />
+      <el-table-column align="center" fixed="left" label="任务名称" min-width="190" prop="taskName" show-overflow-tooltip />
+      <el-table-column align="center" label="检测项目" min-width="180" prop="testItem" show-overflow-tooltip />
+      <el-table-column align="center" label="需求编号" min-width="150" prop="requestNo" show-overflow-tooltip />
+      <el-table-column align="center" label="样品编号" min-width="150" prop="sampleNo" show-overflow-tooltip />
+      <el-table-column align="center" label="生命周期" min-width="110">
+        <template #default="{ row }">
+          <el-tag :type="getTaskStatusTagType(row.taskStatus)">
+            {{ formatTaskStatus(row.taskStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="排程" min-width="110">
+        <template #default="{ row }">
+          <el-tag :type="getScheduleStatusTagType(row.scheduleStatus)">
+            {{ formatScheduleStatus(row.scheduleStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="执行人" min-width="90">
+        <template #default="{ row }">{{ formatActorLabel(undefined, row.assignedUserId) }}</template>
+      </el-table-column>
+      <el-table-column align="center" label="设备" min-width="150" show-overflow-tooltip>
+        <template #default="{ row }">
+          {{ row.equipmentCode || formatActorLabel(row.equipmentName, row.equipmentId) }}
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="计划窗口" min-width="250" show-overflow-tooltip>
+        <template #default="{ row }">{{ formatTaskWindow(row) }}</template>
+      </el-table-column>
+      <el-table-column align="center" label="QC" min-width="100">
+        <template #default="{ row }">
+          <el-tag :type="getReviewStatusTagType(row.qcStatus)">
+            {{ formatReviewStatus(row.qcStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="复核" min-width="100">
+        <template #default="{ row }">
+          <el-tag :type="getReviewStatusTagType(row.reviewStatus)">
+            {{ formatReviewStatus(row.reviewStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="可报告" min-width="100">
+        <template #default="{ row }">
+          <el-tag :type="getReportEligibleTagType(row.reportEligible)">
+            {{ formatReportEligible(row.reportEligible) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column align="center" label="阻断原因" min-width="180" prop="blockReason" show-overflow-tooltip />
+      <el-table-column align="center" fixed="right" label="操作" width="360">
+        <template #default="{ row }">
+          <el-button v-hasPermi="['lims:task:schedule']" link type="primary" @click="openSchedule(row)">
+            排程
+          </el-button>
+          <el-button v-hasPermi="['lims:task:schedule']" link type="primary" @click="openDefaultSchedule(row)">
+            快排
+          </el-button>
+          <el-button v-hasPermi="['lims:task:readiness']" link type="primary" @click="openReadiness(row, 'ready')">
+            就绪
+          </el-button>
+          <el-button v-hasPermi="['lims:task:readiness']" link type="primary" @click="openReadiness(row, 'start')">
+            开始
+          </el-button>
+          <el-button v-hasPermi="['lims:task:hold']" link type="warning" @click="handleHold(row)">
+            挂起
+          </el-button>
+          <el-button v-hasPermi="['lims:task:record']" link type="primary" @click="openRecord(row, 'raw')">
+            记录
+          </el-button>
+          <el-button v-hasPermi="['lims:task:record']" link type="primary" @click="openRecord(row, 'qc')">
+            QC
+          </el-button>
+          <el-button v-hasPermi="['lims:task:review']" link type="primary" @click="openReview(row)">
+            复核
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+    <Pagination
+      v-model:limit="queryParams.pageSize"
+      v-model:page="queryParams.pageNo"
+      :total="total"
+      @pagination="getList"
+    />
+  </ContentWrap>
+
+  <TaskSchedulePanel ref="schedulePanelRef" @success="getList" />
+  <TaskReadinessDrawer ref="readinessDrawerRef" @success="getList" />
+  <TaskRecordDrawer ref="recordDrawerRef" @success="getList" />
+  <TaskReviewDrawer ref="reviewDrawerRef" @success="getList" />
 </template>
 
 <script lang="ts" setup>
-import type { LimsWorkflowVO } from '@/api/lims/workflow'
-import LimsWorkflowPage from '@/views/lims/_components/LimsWorkflowPage.vue'
+import { LimsWorkflowApi, type LimsTaskPageReqVO, type LimsTaskVO } from '@/api/lims/workflow'
+import TaskReadinessDrawer from './TaskReadinessDrawer.vue'
+import TaskRecordDrawer from './TaskRecordDrawer.vue'
+import TaskReviewDrawer from './TaskReviewDrawer.vue'
+import TaskSchedulePanel from './TaskSchedulePanel.vue'
+import {
+  formatActorLabel,
+  formatReportEligible,
+  formatReviewStatus,
+  formatScheduleStatus,
+  formatTaskStatus,
+  formatTaskWindow,
+  getReportEligibleTagType,
+  getReviewStatusTagType,
+  getScheduleStatusTagType,
+  getTaskStatusTagType,
+  SCHEDULE_STATUS_OPTIONS,
+  TASK_STATUS_OPTIONS
+} from './taskStatus'
 
 defineOptions({ name: 'LimsTask' })
 
-const fields = [
-  { prop: 'taskStatus', label: '生命周期' },
-  { prop: 'scheduleStatus', label: '排程状态' },
-  { prop: 'qcStatus', label: '质控状态' },
-  { prop: 'reviewStatus', label: '复核状态' },
-  { prop: 'testItem', label: '检测项目' },
-  { prop: 'equipmentCode', label: '设备编码' },
-  { prop: 'requestId', label: '需求ID' },
-  { prop: 'requestNo', label: '需求编号' },
-  { prop: 'sampleId', label: '样品ID' },
-  { prop: 'sampleNo', label: '样品编号' },
-  { prop: 'reportEligible', label: '可报告' },
-  { prop: 'methodCode', label: '方法编码' },
-  { prop: 'methodName', label: '方法名称' },
-  { prop: 'equipmentId', label: '设备ID' },
-  { prop: 'assignedUserId', label: '执行人' },
-  { prop: 'plannedStartTime', label: '计划开始' },
-  { prop: 'plannedEndTime', label: '计划结束' },
-  { prop: 'durationMinutes', label: '预计分钟' },
-  { prop: 'actualStartTime', label: '实际开始' },
-  { prop: 'actualEndTime', label: '实际结束' },
-  { prop: 'blockReason', label: '阻断原因' },
-  { prop: 'methodSnapshot', label: '方法快照', type: 'textarea', span: 24, table: false },
-  { prop: 'readinessSnapshot', label: '就绪快照', type: 'textarea', span: 24, table: false },
-  { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
-]
-const rowActions = [
-  { label: '快速排程', url: '/lims/task/schedule-default', method: 'post' },
-  { label: '确认就绪', url: '/lims/task/ready', method: 'put' },
-  { label: '开始检测', url: '/lims/task/start', method: 'put' },
-  {
-    label: '原始记录',
-    url: '/lims/task/raw-record',
-    method: 'post',
-    formTitle: '提交原始记录',
-    defaults: (row: LimsWorkflowVO) => ({
-      taskId: row.id,
-      recordType: 'manual_entry',
-      recordJson: JSON.stringify({ taskNo: row.taskNo, testItem: row.testItem, capturedAt: new Date().toISOString() }),
-      versionNo: 1,
-      status: 'submitted',
-      remark: '原始记录已提交'
-    }),
-    fields: [
-      { prop: 'taskId', label: '任务ID', hidden: true },
-      { prop: 'recordType', label: '记录类型' },
-      { prop: 'recordJson', label: '原始记录JSON', type: 'textarea', span: 24 },
-      { prop: 'attachmentUrl', label: '附件地址', span: 24 },
-      { prop: 'versionNo', label: '版本号' },
-      { prop: 'submittedBy', label: '提交人ID' },
-      { prop: 'status', label: '记录状态' },
-      { prop: 'remark', label: '提交说明', type: 'textarea', span: 24 }
-    ]
-  },
-  {
-    label: '提交QC',
-    url: '/lims/task/qc-record',
-    method: 'post',
-    formTitle: '提交质控记录',
-    defaults: (row: LimsWorkflowVO) => ({
-      taskId: row.id,
-      qcType: 'routine_qc',
-      qcRuleSnapshot: row.methodSnapshot || '{}',
-      qcDataJson: '{}',
-      qcResult: 'approved',
-      reviewComment: 'QC通过，待技术复核'
-    }),
-    fields: [
-      { prop: 'taskId', label: '任务ID', hidden: true },
-      { prop: 'qcType', label: '质控类型' },
-      { prop: 'qcRuleSnapshot', label: '质控规则快照', type: 'textarea', span: 24 },
-      { prop: 'qcDataJson', label: '质控数据JSON', type: 'textarea', span: 24 },
-      {
-        prop: 'qcResult',
-        label: '质控结果',
-        type: 'select',
-        options: [
-          { label: '通过', value: 'approved' },
-          { label: '不通过', value: 'rejected' }
-        ]
-      },
-      { prop: 'reviewComment', label: '质控意见', type: 'textarea', span: 24 }
-    ]
-  },
-  {
-    label: '复核通过',
-    url: '/lims/task/approve',
-    method: 'put',
-    formTitle: '技术复核通过',
-    defaults: (row: LimsWorkflowVO) => ({
-      taskId: row.id,
-      reviewType: 'technical',
-      snapshotHash: row.methodSnapshot || row.readinessSnapshot || '',
-      remark: '批准进入报告'
-    }),
-    fields: [
-      { prop: 'taskId', label: '任务ID', hidden: true },
-      { prop: 'reviewType', label: '复核类型' },
-      { prop: 'reviewerId', label: '复核人ID' },
-      { prop: 'snapshotHash', label: '复核快照哈希', span: 24 },
-      { prop: 'remark', label: '复核意见', type: 'textarea', span: 24 }
-    ]
-  },
-  {
-    label: '复核驳回',
-    url: '/lims/task/reject',
-    method: 'put',
-    formTitle: '技术复核驳回',
-    defaults: (row: LimsWorkflowVO) => ({
-      taskId: row.id,
-      reviewType: 'technical',
-      snapshotHash: row.methodSnapshot || row.readinessSnapshot || '',
-      remark: '数据需返工'
-    }),
-    fields: [
-      { prop: 'taskId', label: '任务ID', hidden: true },
-      { prop: 'reviewType', label: '复核类型' },
-      { prop: 'reviewerId', label: '复核人ID' },
-      { prop: 'snapshotHash', label: '复核快照哈希', span: 24 },
-      { prop: 'remark', label: '驳回原因', type: 'textarea', span: 24 }
-    ]
+const loading = ref(true)
+const list = ref<LimsTaskVO[]>([])
+const total = ref(0)
+const message = useMessage()
+const queryFormRef = ref()
+const plannedStartRange = ref<[string, string] | []>([])
+const queryParams = reactive<LimsTaskPageReqVO>({
+  pageNo: 1,
+  pageSize: 10,
+  keyword: undefined,
+  taskStatus: undefined,
+  scheduleStatus: undefined,
+  assignedUserId: undefined,
+  equipmentId: undefined,
+  plannedStartTimeBegin: undefined,
+  plannedStartTimeEnd: undefined
+})
+
+const schedulePanelRef = ref<InstanceType<typeof TaskSchedulePanel>>()
+const readinessDrawerRef = ref<InstanceType<typeof TaskReadinessDrawer>>()
+const recordDrawerRef = ref<InstanceType<typeof TaskRecordDrawer>>()
+const reviewDrawerRef = ref<InstanceType<typeof TaskReviewDrawer>>()
+
+const syncRangeToQuery = () => {
+  queryParams.plannedStartTimeBegin = plannedStartRange.value?.[0]
+  queryParams.plannedStartTimeEnd = plannedStartRange.value?.[1]
+}
+
+const getList = async () => {
+  loading.value = true
+  try {
+    syncRangeToQuery()
+    const data = await LimsWorkflowApi.getTaskPage(queryParams)
+    list.value = data.list || []
+    total.value = data.total || 0
+  } finally {
+    loading.value = false
   }
-] as const
+}
+
+const handleQuery = () => {
+  queryParams.pageNo = 1
+  getList()
+}
+
+const resetQuery = () => {
+  queryFormRef.value?.resetFields()
+  plannedStartRange.value = []
+  handleQuery()
+}
+
+const openSchedule = (row: LimsTaskVO) => {
+  schedulePanelRef.value?.open(row, 'schedule')
+}
+
+const openDefaultSchedule = (row: LimsTaskVO) => {
+  schedulePanelRef.value?.open(row, 'default')
+}
+
+const openReadiness = (row: LimsTaskVO, action: 'ready' | 'start') => {
+  readinessDrawerRef.value?.open(row, action)
+}
+
+const openRecord = (row: LimsTaskVO, mode: 'raw' | 'qc') => {
+  recordDrawerRef.value?.open(row, mode)
+}
+
+const openReview = (row: LimsTaskVO) => {
+  reviewDrawerRef.value?.open(row)
+}
+
+const handleHold = async (row: LimsTaskVO) => {
+  if (!row.id) return
+  await message.confirm('确认挂起该检测任务？')
+  await LimsWorkflowApi.holdTask(row.id, '任务由任务工作台挂起')
+  message.success('任务已挂起')
+  await getList()
+}
+
+onMounted(() => getList())
 </script>

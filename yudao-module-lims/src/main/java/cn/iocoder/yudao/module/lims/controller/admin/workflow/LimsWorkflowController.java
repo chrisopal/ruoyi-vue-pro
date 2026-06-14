@@ -176,29 +176,38 @@ public class LimsWorkflowController {
 
     @PutMapping("/lims/task/start")
     @Operation(summary = "开始检测任务")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:readiness')")
     public CommonResult<Boolean> startTask(@RequestParam("id") Long id) {
         workflowService.startTask(id);
         return success(true);
     }
 
+    @PutMapping("/lims/task/hold")
+    @Operation(summary = "挂起检测任务")
+    @PreAuthorize("@ss.hasPermission('lims:task:hold')")
+    public CommonResult<Boolean> holdTask(@RequestParam("id") Long id,
+                                          @RequestParam(value = "reason", required = false) String reason) {
+        workflowService.holdTask(id, reason);
+        return success(true);
+    }
+
     @PostMapping("/lims/task/schedule")
     @Operation(summary = "检测任务排程")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:schedule')")
     public CommonResult<Long> scheduleTask(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
         return success(workflowService.scheduleTask(reqVO));
     }
 
     @PostMapping("/lims/task/schedule-default")
     @Operation(summary = "检测任务快速排程")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:schedule')")
     public CommonResult<Long> scheduleTaskDefault(@RequestParam("id") Long id) {
         return success(workflowService.scheduleTaskDefault(id));
     }
 
     @PutMapping("/lims/task/ready")
     @Operation(summary = "确认检测任务就绪")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:readiness')")
     public CommonResult<Boolean> markTaskReady(@RequestParam("id") Long id) {
         workflowService.markTaskReady(id);
         return success(true);
@@ -206,21 +215,21 @@ public class LimsWorkflowController {
 
     @PostMapping("/lims/task/raw-record")
     @Operation(summary = "提交检测任务原始记录")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:record')")
     public CommonResult<Long> submitRawRecord(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
         return success(workflowService.submitRawRecord(reqVO));
     }
 
     @PostMapping("/lims/task/qc-record")
     @Operation(summary = "提交检测任务质控记录")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:record')")
     public CommonResult<Long> submitQcRecord(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
         return success(workflowService.submitQcRecord(reqVO));
     }
 
     @PutMapping("/lims/task/approve")
     @Operation(summary = "技术复核通过检测任务")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:review')")
     public CommonResult<Boolean> approveTaskReview(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
         workflowService.approveTaskReview(reqVO);
         return success(true);
@@ -228,7 +237,7 @@ public class LimsWorkflowController {
 
     @PutMapping("/lims/task/reject")
     @Operation(summary = "技术复核驳回检测任务")
-    @PreAuthorize("@ss.hasPermission('lims:task:update')")
+    @PreAuthorize("@ss.hasPermission('lims:task:review')")
     public CommonResult<Boolean> rejectTaskReview(@Valid @RequestBody LimsWorkflowSaveReqVO reqVO) {
         workflowService.rejectTaskReview(reqVO);
         return success(true);

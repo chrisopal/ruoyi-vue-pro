@@ -263,6 +263,16 @@ public class LimsWorkflowService {
         taskLifecycleService.start(id);
     }
 
+    public void holdTask(Long id, String reason) {
+        validateTaskExists(id);
+        String holdReason = StringUtils.hasText(reason) ? reason : "任务已挂起";
+        taskLifecycleService.transition(id, LimsTaskStatus.HOLD, LimsTaskEventType.HOLD, holdReason, null);
+        taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>()
+                .eq("id", id)
+                .set("block_reason", holdReason)
+                .set("report_eligible", false));
+    }
+
     public Long scheduleTask(LimsWorkflowSaveReqVO reqVO) {
         return taskScheduleService.schedule(reqVO);
     }
