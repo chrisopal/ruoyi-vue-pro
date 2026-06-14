@@ -23,8 +23,10 @@ const fields = [
   { prop: 'requestId', label: '需求ID' },
   { prop: 'requestNo', label: '需求编号' },
   { prop: 'templateId', label: '模板ID' },
+  { prop: 'templateVersion', label: '模板版本' },
   { prop: 'conclusion', label: '报告结论' },
   { prop: 'issuedTime', label: '签发时间' },
+  { prop: 'reportOutput', label: '输出清单', type: 'textarea', display: 'reportOutput', span: 24 },
   { prop: 'fileUrl', label: '文件地址' },
   { prop: 'reportContent', label: '报告内容', type: 'textarea', span: 24 },
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }

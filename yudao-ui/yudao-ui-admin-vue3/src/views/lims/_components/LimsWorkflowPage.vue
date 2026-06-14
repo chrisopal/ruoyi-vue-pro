@@ -36,7 +36,17 @@
         min-width="140"
         :prop="field.prop"
         show-overflow-tooltip
-      />
+      >
+        <template #default="scope">
+          <div v-if="field.display === 'reportOutput'" class="flex flex-wrap justify-center gap-4px">
+            <el-tag v-for="output in parseReportOutputs(scope.row[field.prop])" :key="output.fileUrl || output.format" size="small">
+              {{ output.format }}
+            </el-tag>
+            <span v-if="parseReportOutputs(scope.row[field.prop]).length === 0">-</span>
+          </div>
+          <span v-else>{{ scope.row[field.prop] || '-' }}</span>
+        </template>
+      </el-table-column>
       <el-table-column align="center" label="状态" min-width="110" prop="status">
         <template #default="scope"><el-tag>{{ scope.row.status || '-' }}</el-tag></template>
       </el-table-column>
@@ -52,7 +62,7 @@
   </ContentWrap>
 
   <el-dialog v-model="formVisible" :title="formType === 'create' ? '新增' + title : '编辑' + title" width="900px">
-    <el-form ref="formRef" :model="formData" label-width="120px">
+    <el-form :model="formData" label-width="120px">
       <el-row :gutter="16">
         <el-col v-for="field in formFields" :key="field.prop" :span="field.span || 12">
           <el-form-item :label="field.label" :prop="field.prop">
@@ -77,8 +87,9 @@ import { LimsWorkflowApi, LimsWorkflowVO } from '@/api/lims/workflow'
 defineOptions({ name: 'LimsWorkflowPage' })
 
 interface FieldOption { label: string; value: string | number }
-interface FieldConfig { prop: string; label: string; type?: string; span?: number; table?: boolean; options?: FieldOption[] }
+interface FieldConfig { prop: string; label: string; type?: string; display?: string; span?: number; table?: boolean; options?: FieldOption[] }
 interface ActionConfig { label: string; url: string; method?: 'post' | 'put' }
+interface ReportOutput { format?: string; fileUrl?: string }
 
 const props = defineProps<{
   title: string
@@ -89,8 +100,8 @@ const props = defineProps<{
   noLabel: string
   nameField: string
   nameLabel: string
-  fields: FieldConfig[]
-  rowActions?: ActionConfig[]
+  fields: readonly FieldConfig[]
+  rowActions?: readonly ActionConfig[]
   defaults?: LimsWorkflowVO
 }>()
 
@@ -105,7 +116,6 @@ const formVisible = ref(false)
 const formLoading = ref(false)
 const formType = ref('')
 const formData = ref<LimsWorkflowVO>({})
-const formRef = ref()
 
 const title = computed(() => props.title)
 const subtitle = computed(() => props.subtitle)
@@ -116,7 +126,7 @@ const nameLabel = computed(() => props.nameLabel)
 const rowActions = computed(() => props.rowActions || [])
 const visibleFields = computed(() => props.fields.filter((field) => field.table !== false && field.prop !== props.noField && field.prop !== props.nameField && field.prop !== 'status').slice(0, 6))
 const formFields = computed(() => {
-  const core = [{ prop: props.noField, label: props.noLabel }, { prop: props.nameField, label: props.nameLabel }]
+  const core: FieldConfig[] = [{ prop: props.noField, label: props.noLabel }, { prop: props.nameField, label: props.nameLabel }]
   const merged = [...core, ...props.fields, { prop: 'status', label: '状态' }]
   const seen = new Set<string>()
   return merged.filter((field) => {
@@ -177,6 +187,15 @@ const runAction = async (action: ActionConfig, row: LimsWorkflowVO) => {
   else await LimsWorkflowApi.putAction(action.url, row.id)
   message.success('操作成功')
   await getList()
+}
+const parseReportOutputs = (value: unknown): ReportOutput[] => {
+  if (!value) return []
+  try {
+    const manifest = (typeof value === 'string' ? JSON.parse(value) : value) as { outputs?: ReportOutput[] }
+    return Array.isArray(manifest?.outputs) ? manifest.outputs : []
+  } catch {
+    return []
+  }
 }
 
 onMounted(() => getList())

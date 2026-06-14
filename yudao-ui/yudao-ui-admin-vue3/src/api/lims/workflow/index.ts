@@ -45,9 +45,11 @@ export interface LimsWorkflowVO {
   reportNo?: string
   reportName?: string
   templateId?: number
+  templateVersion?: string
   reportContent?: string
   conclusion?: string
   fileUrl?: string
+  reportOutput?: string
   issuedTime?: string
   [key: string]: any
 }

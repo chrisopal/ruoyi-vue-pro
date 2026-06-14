@@ -24,11 +24,15 @@ import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.IssuedReportEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -69,7 +73,22 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     @Spy
     private ExecutionPlanFactory executionPlanFactory = new ExecutionPlanFactory(new ObjectMapper(), reportDraftPlanFactory);
     @Spy
+    private ReportOutputGenerator reportOutputGenerator = new ReportOutputGenerator(new ObjectMapper());
+    @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
+
+    @TempDir
+    private Path reportOutputDir;
+
+    @BeforeEach
+    void setUpReportOutputDir() {
+        System.setProperty(ReportOutputGenerator.OUTPUT_DIR_PROPERTY, reportOutputDir.toString());
+    }
+
+    @AfterEach
+    void clearReportOutputDir() {
+        System.clearProperty(ReportOutputGenerator.OUTPUT_DIR_PROPERTY);
+    }
 
     @Test
     void createRequest_shouldFreezeSnapshotFromDomainPackGateway() {
@@ -118,6 +137,24 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void generateTasks_shouldInitializeLifecycleSchedulingAndReportGateFields() {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(sampleMapper.selectListByRequestId(1L)).thenReturn(List.of(sample()));
+
+        workflowService.generateTasks(1L);
+
+        verify(taskMapper).insert(argThat((LimsTestTaskDO task) ->
+                "generated".equals(task.getTaskStatus())
+                        && "unscheduled".equals(task.getScheduleStatus())
+                        && "none".equals(task.getQcStatus())
+                        && "none".equals(task.getReviewStatus())
+                        && Boolean.FALSE.equals(task.getReportEligible())
+                        && task.getDurationMinutes() != null
+                        && task.getDurationMinutes() >= 1));
+    }
+
+    @Test
     void generateTasks_shouldBindAvailableEquipmentAndCalibrationEvidence() {
         LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
         when(requestMapper.selectById(1L)).thenReturn(request);
@@ -152,7 +189,14 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                 report.getDataSnapshot().contains("equipmentEvidenceSnapshots")
                         && report.getDataSnapshot().contains("PH-METER-001")
                         && report.getDataSnapshot().contains("CERT-001")
-                        && report.getDataSnapshotHash() != null));
+                        && report.getDataSnapshotHash() != null
+                        && "1.0".equals(report.getTemplateVersion())
+                        && "/lims/report-output/RPT-REQ-2026-001/RPT-REQ-2026-001.pdf".equals(report.getFileUrl())
+                        && report.getReportOutput().contains("\"primaryFormat\":\"PDF\"")
+                        && report.getReportOutput().contains("\"format\":\"WORD\"")
+                        && report.getReportOutput().contains("\"format\":\"PDF\"")
+                        && report.getReportOutput().contains("\"format\":\"EXCEL\"")
+                        && report.getReportOutput().contains("contentHash")));
     }
 
     @Test
@@ -267,7 +311,7 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                   "packVersion": "1.0",
                   "template": {
                     "templates": ["REPORT_BASIC_V1"],
-                    "outputFormats": ["WORD", "PDF"],
+                    "outputFormats": ["WORD", "PDF", "EXCEL"],
                     "reportSections": [
                       {"sectionCode": "RESULTS", "sectionName": "检测结果", "sourceType": "result_values"}
                     ]

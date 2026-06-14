@@ -26,6 +26,8 @@ public class LimsTestTaskDO extends TenantBaseDO {
     private String methodName;
     private Long standardClauseId;
     private Long assignedUserId;
+    private Long reviewerId;
+    private Long durationMinutes;
     private Long equipmentId;
     private String equipmentCode;
     private String equipmentName;
@@ -34,6 +36,16 @@ public class LimsTestTaskDO extends TenantBaseDO {
     private String plannedStartTime;
     private String plannedEndTime;
     private String status;
+    private String taskStatus;
+    private String scheduleStatus;
+    private String actualStartTime;
+    private String actualEndTime;
+    private String methodSnapshot;
+    private String readinessSnapshot;
+    private String qcStatus;
+    private String reviewStatus;
+    private Boolean reportEligible;
+    private String blockReason;
     private String remark;
 
 }

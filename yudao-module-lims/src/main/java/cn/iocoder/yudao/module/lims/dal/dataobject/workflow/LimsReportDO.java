@@ -27,6 +27,7 @@ public class LimsReportDO extends TenantBaseDO {
     private String workflowSnapshotHash;
     private String conclusion;
     private String fileUrl;
+    private String reportOutput;
     private String issuedTime;
     private String status;
     private String remark;

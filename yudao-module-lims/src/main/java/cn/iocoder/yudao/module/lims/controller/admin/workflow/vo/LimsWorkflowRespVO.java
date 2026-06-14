@@ -77,6 +77,7 @@ public class LimsWorkflowRespVO {
     private String dataSnapshotHash;
     private String conclusion;
     private String fileUrl;
+    private String reportOutput;
     private String issuedTime;
     private LocalDateTime createTime;
 

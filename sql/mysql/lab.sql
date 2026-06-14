@@ -1560,6 +1560,8 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   `method_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '方法名称',
   `standard_clause_id` bigint NULL DEFAULT NULL COMMENT '标准条款编号',
   `assigned_user_id` bigint NULL DEFAULT NULL COMMENT '执行人',
+  `reviewer_id` bigint NULL DEFAULT NULL COMMENT '技术复核人',
+  `duration_minutes` bigint NULL DEFAULT NULL COMMENT '预计耗时分钟',
   `equipment_id` bigint NULL DEFAULT NULL COMMENT '设备主档编号',
   `equipment_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备编码',
   `equipment_name` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '设备名称',
@@ -1568,6 +1570,16 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   `planned_start_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '计划开始',
   `planned_end_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '计划结束',
   `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'assigned' COMMENT '状态',
+  `task_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'generated' COMMENT '任务生命周期状态',
+  `schedule_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'unscheduled' COMMENT '排程状态',
+  `actual_start_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '实际开始时间',
+  `actual_end_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '实际结束时间',
+  `method_snapshot` json NULL COMMENT '方法配置快照',
+  `readiness_snapshot` json NULL COMMENT '任务就绪检查快照',
+  `qc_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none' COMMENT '质控状态',
+  `review_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'none' COMMENT '复核状态',
+  `report_eligible` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否可进入报告',
+  `block_reason` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '阻断原因',
   `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
   `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -1578,7 +1590,10 @@ CREATE TABLE IF NOT EXISTS `lims_test_task` (
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_lims_task_request` (`request_id`, `tenant_id`, `deleted`) USING BTREE,
   KEY `idx_lims_task_sample` (`sample_id`, `tenant_id`, `deleted`) USING BTREE,
-  KEY `idx_lims_task_equipment` (`equipment_id`, `tenant_id`, `deleted`) USING BTREE
+  KEY `idx_lims_task_equipment` (`equipment_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_lifecycle` (`task_status`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_schedule_status` (`schedule_status`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lims_task_assignee_window` (`assigned_user_id`, `planned_start_time`, `planned_end_time`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'LIMS检测任务';
 
 CREATE TABLE IF NOT EXISTS `lims_test_result` (
@@ -1655,6 +1670,7 @@ CREATE TABLE IF NOT EXISTS `lims_report` (
   `workflow_snapshot_hash` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '方向包冻结快照哈希',
   `conclusion` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '报告结论',
   `file_url` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '文件地址',
+  `report_output` json NULL COMMENT '报告输出清单',
   `issued_time` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '签发时间',
   `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft' COMMENT '状态',
   `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',

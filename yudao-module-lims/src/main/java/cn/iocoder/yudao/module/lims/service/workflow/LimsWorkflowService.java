@@ -26,6 +26,8 @@ import cn.iocoder.yudao.module.lims.service.workflow.gateway.ReportEvidenceGatew
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
 import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
 import cn.iocoder.yudao.module.lims.service.workflow.model.IssuedReportEvidence;
+import cn.iocoder.yudao.module.lims.service.workflow.model.ReportOutputBundle;
+import cn.iocoder.yudao.module.lims.service.workflow.model.ReportOutputRequest;
 import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -81,6 +83,10 @@ public class LimsWorkflowService {
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Resource
     private ExecutionPlanFactory executionPlanFactory;
+    @Resource
+    private ReportDraftPlanFactory reportDraftPlanFactory;
+    @Resource
+    private ReportOutputGenerator reportOutputGenerator;
     @Resource
     private ObjectMapper objectMapper;
 
@@ -310,7 +316,14 @@ public class LimsWorkflowService {
                 task.setTestItem(item.itemName());
                 task.setMethodCode(item.methodCode());
                 task.setMethodName(item.methodName());
-                task.setStatus("assigned");
+                task.setStatus(LimsTaskStatus.GENERATED);
+                task.setTaskStatus(LimsTaskStatus.GENERATED);
+                task.setScheduleStatus(LimsTaskScheduleStatus.UNSCHEDULED);
+                task.setDurationMinutes(item.durationMinutes());
+                task.setMethodSnapshot(writeJson(item));
+                task.setQcStatus("none");
+                task.setReviewStatus(LimsTaskReviewStatus.NONE);
+                task.setReportEligible(false);
                 bindEquipmentToTask(task, request, null);
                 taskMapper.insert(task);
                 created++;
@@ -350,6 +363,7 @@ public class LimsWorkflowService {
         report.setReportName(request.getRequestName() + "检测报告");
         report.setConclusion(resolveReportConclusion(results));
         String reportContent = buildReportContent(request, results);
+        attachReportOutputs(report, request, reportContent);
         report.setReportContent(reportContent);
         report.setDataSnapshot(reportContent);
         report.setDataSnapshotHash(sha256(reportContent));
@@ -358,6 +372,22 @@ public class LimsWorkflowService {
         reportMapper.insert(report);
         requestMapper.update(null, new UpdateWrapper<LimsTestRequestDO>().eq("id", requestId).set("status", "report_generated"));
         return report.getId();
+    }
+
+    private void attachReportOutputs(LimsReportDO report, LimsTestRequestDO request, String reportContent) {
+        JsonNode workflowSnapshot = readObject(resolveWorkflowSnapshot(request));
+        ObjectNode reportDraftPlan = reportDraftPlanFactory.createReportDraftPlan(workflowSnapshot);
+        String generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        ReportOutputBundle outputBundle = reportOutputGenerator.generate(new ReportOutputRequest(
+                report.getReportNo(),
+                report.getReportName(),
+                report.getConclusion(),
+                reportContent,
+                reportDraftPlan,
+                generatedAt));
+        report.setTemplateVersion(reportDraftPlan.path("templateVersion").asText(report.getTemplateVersion()));
+        report.setReportOutput(writeJson(outputBundle));
+        report.setFileUrl(outputBundle.primaryFileUrl());
     }
 
     public void issueReport(Long id) {
@@ -523,18 +553,27 @@ public class LimsWorkflowService {
             configuredItems.forEach(item -> items.add(new TestItemConfig(
                     item.path("itemName").asText(item.path("name").asText("常规检测")),
                     item.path("methodCode").asText("METHOD"),
-                    item.path("methodName").asText("配置方法"))));
+                    item.path("methodName").asText("配置方法"),
+                    resolveDurationMinutes(item))));
         }
         if (!items.isEmpty()) {
             return items;
         }
         if ("ENVIRONMENT".equalsIgnoreCase(request.getDomainCode())) {
-            return List.of(new TestItemConfig("pH", "HJ-1147", "水质 pH 测定"), new TestItemConfig("COD", "HJ-828", "化学需氧量测定"));
+            return List.of(new TestItemConfig("pH", "HJ-1147", "水质 pH 测定", 60L),
+                    new TestItemConfig("COD", "HJ-828", "化学需氧量测定", 120L));
         }
         if ("INDUSTRIAL".equalsIgnoreCase(request.getDomainCode())) {
-            return List.of(new TestItemConfig("尺寸检查", "DIM", "尺寸测量"), new TestItemConfig("可靠性试验", "REL", "可靠性试验方法"));
+            return List.of(new TestItemConfig("尺寸检查", "DIM", "尺寸测量", 60L),
+                    new TestItemConfig("可靠性试验", "REL", "可靠性试验方法", 240L));
         }
-        return List.of(new TestItemConfig("感官检查", "FOOD-SENSE", "食品感官检查"), new TestItemConfig("水分", "GB5009.3", "食品中水分测定"));
+        return List.of(new TestItemConfig("感官检查", "FOOD-SENSE", "食品感官检查", 60L),
+                new TestItemConfig("水分", "GB5009.3", "食品中水分测定", 90L));
+    }
+
+    private Long resolveDurationMinutes(JsonNode item) {
+        long durationMinutes = item.path("estimatedDurationMinutes").asLong(60L);
+        return Math.max(durationMinutes, 1L);
     }
 
     private String buildReportContent(LimsTestRequestDO request, List<LimsTestResultDO> results) {
@@ -681,7 +720,7 @@ public class LimsWorkflowService {
         return report;
     }
 
-    private record TestItemConfig(String itemName, String methodCode, String methodName) {
+    private record TestItemConfig(String itemName, String methodCode, String methodName, Long durationMinutes) {
     }
 
 }
