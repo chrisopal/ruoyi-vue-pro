@@ -247,11 +247,15 @@ public class LimsWorkflowService {
     }
 
     public LimsWorkflowRespVO getTask(Long id) {
-        return BeanUtils.toBean(taskMapper.selectById(id), LimsWorkflowRespVO.class);
+        LimsWorkflowRespVO respVO = BeanUtils.toBean(taskMapper.selectById(id), LimsWorkflowRespVO.class);
+        enrichTaskDomain(respVO);
+        return respVO;
     }
 
     public PageResult<LimsWorkflowRespVO> getTaskPage(LimsWorkflowPageReqVO pageReqVO) {
-        return BeanUtils.toBean(taskMapper.selectPage(pageReqVO), LimsWorkflowRespVO.class);
+        PageResult<LimsWorkflowRespVO> page = BeanUtils.toBean(taskMapper.selectPage(pageReqVO), LimsWorkflowRespVO.class);
+        page.getList().forEach(this::enrichTaskDomain);
+        return page;
     }
 
     public void updateTaskStatus(Long id, String status) {
@@ -843,6 +847,23 @@ public class LimsWorkflowService {
             return "THIRD_PARTY_ORDER";
         }
         return "INTERNAL_DEPARTMENT";
+    }
+
+    private void enrichTaskDomain(LimsWorkflowRespVO respVO) {
+        if (respVO == null || StringUtils.hasText(respVO.getDomainCode()) || respVO.getRequestId() == null) {
+            return;
+        }
+        LimsTestRequestDO request = requestMapper.selectById(respVO.getRequestId());
+        if (request == null) {
+            return;
+        }
+        respVO.setDomainCode(request.getDomainCode());
+        respVO.setDomainPackId(request.getDomainPackId());
+        respVO.setDomainPackCode(request.getDomainPackCode());
+        respVO.setDomainPackVersion(request.getDomainPackVersion());
+        if (!StringUtils.hasText(respVO.getRequestNo())) {
+            respVO.setRequestNo(request.getRequestNo());
+        }
     }
 
     private String sha256(String value) {

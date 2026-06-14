@@ -3,8 +3,10 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskScheduleDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskScheduleMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
@@ -30,6 +32,8 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
     @Mock
     private LimsTaskScheduleMapper scheduleMapper;
     @Mock
+    private LimsTestRequestMapper requestMapper;
+    @Mock
     private LimsTaskLifecycleService lifecycleService;
     @Mock
     private EquipmentGateway equipmentGateway;
@@ -38,9 +42,10 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
     void schedule_shouldPersistWindowAndMoveTaskToScheduled() {
         LimsTestTaskDO task = task(10L);
         when(taskMapper.selectById(10L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request("ENV"));
         when(scheduleMapper.selectActiveByEquipmentId(88L)).thenReturn(List.of());
         when(scheduleMapper.selectActiveByAssignedUserId(99L)).thenReturn(List.of());
-        when(equipmentGateway.getAvailableEquipment(null, "PH")).thenReturn(List.of(equipment()));
+        when(equipmentGateway.getAvailableEquipment("ENV", "PH")).thenReturn(List.of(equipment()));
         when(equipmentGateway.getCurrentCalibrationEvidence(88L)).thenReturn(List.of(evidence()));
 
         service.schedule(command());
@@ -101,6 +106,13 @@ class LimsTaskScheduleServiceTest extends BaseMockitoUnitTest {
         task.setStatus(LimsTaskStatus.GENERATED);
         task.setDurationMinutes(60L);
         return task;
+    }
+
+    private static LimsTestRequestDO request(String domainCode) {
+        LimsTestRequestDO request = new LimsTestRequestDO();
+        request.setId(1L);
+        request.setDomainCode(domainCode);
+        return request;
     }
 
     private static LimsTaskScheduleDO existing() {

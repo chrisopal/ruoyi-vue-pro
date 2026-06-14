@@ -4,8 +4,10 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskScheduleDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskScheduleMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
 import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
 import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
@@ -35,6 +37,8 @@ public class LimsTaskScheduleService {
     private LimsTestTaskMapper taskMapper;
     @Resource
     private LimsTaskScheduleMapper scheduleMapper;
+    @Resource
+    private LimsTestRequestMapper requestMapper;
     @Resource
     private LimsTaskLifecycleService lifecycleService;
     @Resource
@@ -114,7 +118,8 @@ public class LimsTaskScheduleService {
         if (equipmentId == null) {
             return;
         }
-        AvailableEquipment selected = equipmentGateway.getAvailableEquipment(null, task.getTestItem()).stream()
+        String domainCode = resolveRequestDomainCode(task.getRequestId());
+        AvailableEquipment selected = equipmentGateway.getAvailableEquipment(domainCode, task.getTestItem()).stream()
                 .filter(equipment -> equipmentId.equals(equipment.equipmentId()))
                 .findFirst()
                 .orElseThrow(() -> exception(TEST_TASK_EQUIPMENT_UNAVAILABLE));
@@ -124,6 +129,11 @@ public class LimsTaskScheduleService {
         task.setEquipmentName(selected.equipmentName());
         task.setEquipmentSnapshot(writeJson(selected));
         task.setEquipmentEvidenceSnapshot(writeJson(evidence));
+    }
+
+    private String resolveRequestDomainCode(Long requestId) {
+        LimsTestRequestDO request = requestId == null ? null : requestMapper.selectById(requestId);
+        return request == null ? null : request.getDomainCode();
     }
 
     private void assertNoConflicts(ScheduleCommand command) {

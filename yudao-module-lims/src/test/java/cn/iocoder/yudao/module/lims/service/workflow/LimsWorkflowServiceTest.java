@@ -1,7 +1,9 @@
 package cn.iocoder.yudao.module.lims.service.workflow;
 
+import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
@@ -39,6 +41,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -310,6 +313,30 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         assertEquals(20L, responses.get(0).getTaskId());
         assertEquals("technical", responses.get(0).getReviewType());
         assertEquals(LimsTaskReviewStatus.APPROVED, responses.get(0).getReviewStatus());
+    }
+
+    @Test
+    void getTask_shouldEnrichDomainFromRequest() {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+
+        LimsWorkflowRespVO response = workflowService.getTask(20L);
+
+        assertEquals("FOOD", response.getDomainCode());
+        assertEquals("REQ-2026-001", response.getRequestNo());
+    }
+
+    @Test
+    void getTaskPage_shouldEnrichDomainFromRequest() {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        when(taskMapper.selectPage(any())).thenReturn(new PageResult<>(List.of(task), 1L));
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+
+        PageResult<LimsWorkflowRespVO> page = workflowService.getTaskPage(new LimsWorkflowPageReqVO());
+
+        assertEquals(1, page.getList().size());
+        assertEquals("FOOD", page.getList().get(0).getDomainCode());
     }
 
     @Test
