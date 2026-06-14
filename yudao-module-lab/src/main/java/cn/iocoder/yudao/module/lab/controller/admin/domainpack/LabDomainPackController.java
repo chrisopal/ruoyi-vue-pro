@@ -8,6 +8,8 @@ import cn.iocoder.yudao.module.lab.controller.admin.domainpack.vo.LabDomainPackR
 import cn.iocoder.yudao.module.lab.controller.admin.domainpack.vo.LabDomainPackSaveReqVO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.domainpack.LabDomainPackDO;
 import cn.iocoder.yudao.module.lab.service.domainpack.LabDomainPackService;
+import cn.iocoder.yudao.module.lab.service.domainpack.LabDomainPackQueryService;
+import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -26,6 +28,8 @@ public class LabDomainPackController {
 
     @Resource
     private LabDomainPackService domainPackService;
+    @Resource
+    private LabDomainPackQueryService domainPackQueryService;
 
     @PostMapping("/create")
     @Operation(summary = "创建检测方案包")
@@ -80,6 +84,13 @@ public class LabDomainPackController {
     public CommonResult<LabDomainPackRespVO> getDomainPack(@RequestParam("id") Long id) {
         LabDomainPackDO domainPack = domainPackService.getDomainPack(id);
         return success(BeanUtils.toBean(domainPack, LabDomainPackRespVO.class));
+    }
+
+    @GetMapping("/{id}/published-snapshot")
+    @Operation(summary = "获得已发布检测方案包快照")
+    @PreAuthorize("@ss.hasPermission('lab:domain-pack:query')")
+    public CommonResult<LabDomainPackSnapshotDTO> getPublishedSnapshot(@PathVariable("id") Long id) {
+        return success(domainPackQueryService.getPublishedSnapshot(id));
     }
 
     @GetMapping("/page")
