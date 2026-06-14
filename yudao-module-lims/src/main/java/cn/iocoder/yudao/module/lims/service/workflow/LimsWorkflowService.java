@@ -2,8 +2,7 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
-import cn.iocoder.yudao.module.lab.dal.dataobject.domainpack.LabDomainPackDO;
-import cn.iocoder.yudao.module.lab.dal.mysql.domainpack.LabDomainPackMapper;
+import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -19,6 +18,8 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsSampleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.DomainPackGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.model.WorkflowSnapshot;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -62,22 +63,24 @@ public class LimsWorkflowService {
     @Resource
     private LimsReportMapper reportMapper;
     @Resource
-    private LabDomainPackMapper domainPackMapper;
+    private DomainPackGateway domainPackGateway;
+    @Resource
+    private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Resource
     private ObjectMapper objectMapper;
 
     public Long createRequest(LimsWorkflowSaveReqVO createReqVO) {
         validateRequestPayload(createReqVO);
         validateRequestNoUnique(null, createReqVO.getRequestNo());
-        LabDomainPackDO pack = validateDomainPack(createReqVO.getDomainPackId());
+        LabDomainPackSnapshotDTO pack = validateDomainPack(createReqVO.getDomainPackId());
         LimsTestRequestDO request = BeanUtils.toBean(createReqVO, LimsTestRequestDO.class);
-        String workflowSnapshot = buildWorkflowSnapshot(pack, createReqVO.getScenarioConfig());
-        request.setDomainPackCode(pack.getPackCode());
-        request.setDomainPackVersion(pack.getPackVersion());
-        request.setWorkflowSnapshot(workflowSnapshot);
-        request.setWorkflowSnapshotHash(sha256(workflowSnapshot));
-        request.setWorkflowSnapshotTime(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-        request.setScenarioConfig(workflowSnapshot);
+        WorkflowSnapshot workflowSnapshot = workflowSnapshotFactory.createSnapshot(pack, createReqVO.getScenarioConfig());
+        request.setDomainPackCode(workflowSnapshot.getPackCode());
+        request.setDomainPackVersion(workflowSnapshot.getPackVersion());
+        request.setWorkflowSnapshot(workflowSnapshot.getSnapshotJson());
+        request.setWorkflowSnapshotHash(workflowSnapshot.getSnapshotHash());
+        request.setWorkflowSnapshotTime(workflowSnapshot.getFrozenAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        request.setScenarioConfig(workflowSnapshot.getSnapshotJson());
         if (!StringUtils.hasText(request.getRequestSourceType())) {
             request.setRequestSourceType(resolveDefaultRequestSourceType(request.getRequestType()));
         }
@@ -96,7 +99,7 @@ public class LimsWorkflowService {
         if (existing.getDomainPackId() != null && !Objects.equals(existing.getDomainPackId(), requestedDomainPackId)) {
             throw exception(WORKFLOW_SNAPSHOT_FROZEN);
         }
-        LabDomainPackDO pack = validateDomainPack(requestedDomainPackId);
+        LabDomainPackSnapshotDTO pack = validateDomainPack(requestedDomainPackId);
         LimsTestRequestDO request = BeanUtils.toBean(updateReqVO, LimsTestRequestDO.class);
         request.setDomainPackCode(pack.getPackCode());
         request.setDomainPackVersion(pack.getPackVersion());
@@ -391,35 +394,26 @@ public class LimsWorkflowService {
         }
     }
 
-    private String buildWorkflowSnapshot(LabDomainPackDO pack, String overrideConfig) {
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("domainPackId", pack.getId());
-        root.put("packCode", pack.getPackCode());
-        root.put("packName", pack.getPackName());
-        root.put("packVersion", pack.getPackVersion());
-        root.put("industry", pack.getIndustry());
-        root.put("frozenAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        root.set("workflow", readObject(pack.getWorkflowSchema()));
-        root.set("template", readObject(pack.getTemplateSchema()));
-        if (StringUtils.hasText(overrideConfig)) {
-            root.set("override", readObject(overrideConfig));
-        }
-        return root.toString();
-    }
-
-    private void preserveWorkflowSnapshot(LimsTestRequestDO request, LimsTestRequestDO existing, LabDomainPackDO pack) {
+    private void preserveWorkflowSnapshot(LimsTestRequestDO request, LimsTestRequestDO existing, LabDomainPackSnapshotDTO pack) {
         String workflowSnapshot = existing.getWorkflowSnapshot();
+        WorkflowSnapshot fallbackSnapshot = null;
         if (!StringUtils.hasText(workflowSnapshot)) {
-            workflowSnapshot = StringUtils.hasText(existing.getScenarioConfig())
-                    ? existing.getScenarioConfig()
-                    : buildWorkflowSnapshot(pack, null);
+            if (StringUtils.hasText(existing.getScenarioConfig())) {
+                workflowSnapshot = existing.getScenarioConfig();
+            } else {
+                fallbackSnapshot = workflowSnapshotFactory.createSnapshot(pack, null);
+                workflowSnapshot = fallbackSnapshot.getSnapshotJson();
+            }
         }
         request.setDomainPackId(existing.getDomainPackId());
         request.setDomainPackCode(StringUtils.hasText(existing.getDomainPackCode()) ? existing.getDomainPackCode() : pack.getPackCode());
         request.setDomainPackVersion(StringUtils.hasText(existing.getDomainPackVersion()) ? existing.getDomainPackVersion() : pack.getPackVersion());
         request.setWorkflowSnapshot(workflowSnapshot);
-        request.setWorkflowSnapshotHash(StringUtils.hasText(existing.getWorkflowSnapshotHash()) ? existing.getWorkflowSnapshotHash() : sha256(workflowSnapshot));
-        request.setWorkflowSnapshotTime(StringUtils.hasText(existing.getWorkflowSnapshotTime()) ? existing.getWorkflowSnapshotTime() : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        request.setWorkflowSnapshotHash(StringUtils.hasText(existing.getWorkflowSnapshotHash()) ? existing.getWorkflowSnapshotHash()
+                : fallbackSnapshot != null ? fallbackSnapshot.getSnapshotHash() : sha256(workflowSnapshot));
+        request.setWorkflowSnapshotTime(StringUtils.hasText(existing.getWorkflowSnapshotTime()) ? existing.getWorkflowSnapshotTime()
+                : fallbackSnapshot != null ? fallbackSnapshot.getFrozenAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         request.setScenarioConfig(workflowSnapshot);
     }
 
@@ -435,8 +429,11 @@ public class LimsWorkflowService {
     }
 
     private List<TestItemConfig> getTestItemConfigs(LimsTestRequestDO request) {
-        JsonNode workflow = readObject(resolveWorkflowSnapshot(request)).path("workflow");
-        JsonNode configuredItems = workflow.path("testItems");
+        JsonNode snapshot = readObject(resolveWorkflowSnapshot(request));
+        JsonNode configuredItems = snapshot.path("testItems");
+        if (!configuredItems.isArray() || configuredItems.isEmpty()) {
+            configuredItems = snapshot.path("workflow").path("testItems");
+        }
         List<TestItemConfig> items = new ArrayList<>();
         if (configuredItems.isArray()) {
             configuredItems.forEach(item -> items.add(new TestItemConfig(
@@ -496,18 +493,11 @@ public class LimsWorkflowService {
         return allPass ? "合格" : "需复核";
     }
 
-    private LabDomainPackDO validateDomainPack(Long id) {
+    private LabDomainPackSnapshotDTO validateDomainPack(Long id) {
         if (id == null) {
             throw exception(DOMAIN_PACK_REQUIRED);
         }
-        LabDomainPackDO pack = domainPackMapper.selectById(id);
-        if (pack == null) {
-            throw exception(DOMAIN_PACK_REQUIRED);
-        }
-        if (!"active".equalsIgnoreCase(pack.getStatus()) && !"published".equalsIgnoreCase(pack.getStatus())) {
-            throw exception(DOMAIN_PACK_NOT_PUBLISHED);
-        }
-        return pack;
+        return domainPackGateway.getPublishedPackSnapshot(id);
     }
 
     private String resolveWorkflowSnapshot(LimsTestRequestDO request) {
