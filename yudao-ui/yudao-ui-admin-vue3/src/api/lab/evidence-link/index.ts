@@ -2,18 +2,24 @@ import request from '@/config/axios'
 
 export interface LabEvidenceLinkVO {
   id?: number
-  evidenceCode: string
+  evidenceObjectId?: number
+  evidenceCode?: string
   evidenceName?: string
   evidenceUrl?: string
   evidenceHash?: string
-  sourceObject: string
+  sourceObject?: string
   sourceObjectId?: number
   sourceObjectNo?: string
   linkedBizType: string
   linkedBizId?: number
   linkedBizNo?: string
+  clauseId?: number
+  capabilityScopeId?: number
   clauseCategory: string
   linkStatus: string
+  linkReason?: string
+  verifiedBy?: number
+  verifiedAt?: string
   remark?: string
   createTime?: string
 }

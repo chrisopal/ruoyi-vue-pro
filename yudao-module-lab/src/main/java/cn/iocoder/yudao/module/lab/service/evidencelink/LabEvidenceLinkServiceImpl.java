@@ -4,8 +4,10 @@ import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.lab.controller.admin.evidencelink.vo.LabEvidenceLinkPageReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.evidencelink.vo.LabEvidenceLinkSaveReqVO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.evidenceobject.LabEvidenceObjectDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.evidencelink.LabEvidenceLinkDO;
 import cn.iocoder.yudao.module.lab.dal.mysql.evidencelink.LabEvidenceLinkMapper;
+import cn.iocoder.yudao.module.lab.service.evidenceobject.LabEvidenceObjectService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,7 +20,9 @@ import java.util.HexFormat;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.EVIDENCE_LINK_EVIDENCE_REQUIRED;
 import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.EVIDENCE_LINK_NOT_EXISTS;
+import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.EVIDENCE_LINK_SOURCE_REQUIRED;
 
 @Service
 @Validated
@@ -26,10 +30,14 @@ public class LabEvidenceLinkServiceImpl implements LabEvidenceLinkService {
 
     @Resource
     private LabEvidenceLinkMapper evidenceLinkMapper;
+    @Resource
+    private LabEvidenceObjectService evidenceObjectService;
 
     @Override
     public Long createEvidenceLink(LabEvidenceLinkSaveReqVO createReqVO) {
         LabEvidenceLinkDO evidenceLink = BeanUtils.toBean(createReqVO, LabEvidenceLinkDO.class);
+        fillFromEvidenceObjectIfPresent(evidenceLink);
+        validateEvidenceReference(evidenceLink);
         fillEvidenceHashIfAbsent(evidenceLink);
         evidenceLinkMapper.insert(evidenceLink);
         return evidenceLink.getId();
@@ -39,6 +47,8 @@ public class LabEvidenceLinkServiceImpl implements LabEvidenceLinkService {
     public void updateEvidenceLink(LabEvidenceLinkSaveReqVO updateReqVO) {
         validateEvidenceLinkExists(updateReqVO.getId());
         LabEvidenceLinkDO evidenceLink = BeanUtils.toBean(updateReqVO, LabEvidenceLinkDO.class);
+        fillFromEvidenceObjectIfPresent(evidenceLink);
+        validateEvidenceReference(evidenceLink);
         fillEvidenceHashIfAbsent(evidenceLink);
         evidenceLinkMapper.updateById(evidenceLink);
     }
@@ -72,6 +82,43 @@ public class LabEvidenceLinkServiceImpl implements LabEvidenceLinkService {
     private void validateEvidenceLinkExists(Long id) {
         if (id == null || evidenceLinkMapper.selectById(id) == null) {
             throw exception(EVIDENCE_LINK_NOT_EXISTS);
+        }
+    }
+
+    private void fillFromEvidenceObjectIfPresent(LabEvidenceLinkDO evidenceLink) {
+        if (evidenceLink.getEvidenceObjectId() == null) {
+            return;
+        }
+        LabEvidenceObjectDO evidenceObject = evidenceObjectService.getEvidenceObjectOrThrow(evidenceLink.getEvidenceObjectId());
+        if (!StringUtils.hasText(evidenceLink.getEvidenceCode())) {
+            evidenceLink.setEvidenceCode(evidenceObject.getEvidenceCode());
+        }
+        if (!StringUtils.hasText(evidenceLink.getEvidenceName())) {
+            evidenceLink.setEvidenceName(evidenceObject.getEvidenceName());
+        }
+        if (!StringUtils.hasText(evidenceLink.getEvidenceUrl())) {
+            evidenceLink.setEvidenceUrl(evidenceObject.getFileUrl());
+        }
+        if (!StringUtils.hasText(evidenceLink.getEvidenceHash())) {
+            evidenceLink.setEvidenceHash(evidenceObject.getEvidenceHash());
+        }
+        if (!StringUtils.hasText(evidenceLink.getSourceObject())) {
+            evidenceLink.setSourceObject(evidenceObject.getSourceObject());
+        }
+        if (evidenceLink.getSourceObjectId() == null) {
+            evidenceLink.setSourceObjectId(evidenceObject.getSourceObjectId());
+        }
+        if (!StringUtils.hasText(evidenceLink.getSourceObjectNo())) {
+            evidenceLink.setSourceObjectNo(evidenceObject.getSourceObjectNo());
+        }
+    }
+
+    private void validateEvidenceReference(LabEvidenceLinkDO evidenceLink) {
+        if (evidenceLink.getEvidenceObjectId() == null && !StringUtils.hasText(evidenceLink.getEvidenceCode())) {
+            throw exception(EVIDENCE_LINK_EVIDENCE_REQUIRED);
+        }
+        if (evidenceLink.getEvidenceObjectId() == null && !StringUtils.hasText(evidenceLink.getSourceObject())) {
+            throw exception(EVIDENCE_LINK_SOURCE_REQUIRED);
         }
     }
 

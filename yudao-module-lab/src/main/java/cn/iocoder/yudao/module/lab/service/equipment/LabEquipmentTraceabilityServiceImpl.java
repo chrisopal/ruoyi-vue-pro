@@ -5,9 +5,16 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordPageReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordRespVO;
 import cn.iocoder.yudao.module.lab.controller.admin.quality.vo.LabQualityRecordSaveReqVO;
+import cn.iocoder.yudao.module.lab.controller.admin.evidencelink.vo.LabEvidenceLinkSaveReqVO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.evidenceobject.LabEvidenceObjectDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.equipment.LabEquipmentAssetDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.equipment.LabEquipmentTraceabilityDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.standard.LabStandardClauseDO;
 import cn.iocoder.yudao.module.lab.dal.mysql.equipment.LabEquipmentAssetMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.equipment.LabEquipmentTraceabilityMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.standard.LabStandardClauseMapper;
+import cn.iocoder.yudao.module.lab.service.evidencelink.LabEvidenceLinkService;
+import cn.iocoder.yudao.module.lab.service.evidenceobject.LabEvidenceObjectService;
 import cn.iocoder.yudao.module.lab.service.equipment.dto.LabEquipmentCalibrationEvidenceDTO;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import jakarta.annotation.Resource;
@@ -30,19 +37,30 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
     private static final String TRACEABILITY_TYPE_CALIBRATION = "calibration";
     private static final String STATUS_VALID = "valid";
     private static final String STATUS_DRAFT = "draft";
+    private static final String EVIDENCE_TYPE_EQUIPMENT_CERTIFICATE = "EQUIPMENT_CERTIFICATE";
+    private static final String EVIDENCE_SOURCE_OBJECT = "lab_equipment_traceability";
+    private static final String BUSINESS_DOMAIN_EQUIPMENT = "equipment";
+    private static final String LINKED_BIZ_TYPE_EQUIPMENT_ASSET = "equipment_asset";
 
     @Resource
     private LabEquipmentTraceabilityMapper traceabilityMapper;
     @Resource
     private LabEquipmentAssetMapper equipmentAssetMapper;
+    @Resource
+    private LabEvidenceObjectService evidenceObjectService;
+    @Resource
+    private LabEvidenceLinkService evidenceLinkService;
+    @Resource
+    private LabStandardClauseMapper standardClauseMapper;
 
     @Override
     public Long createEquipmentTraceability(LabQualityRecordSaveReqVO createReqVO) {
-        validateEquipmentAssetExists(createReqVO.getEquipmentId());
+        LabEquipmentAssetDO equipmentAsset = validateEquipmentAssetExists(createReqVO.getEquipmentId());
 
         LabEquipmentTraceabilityDO evidence = BeanUtils.toBean(createReqVO, LabEquipmentTraceabilityDO.class);
         normalizeEvidence(evidence);
         traceabilityMapper.insert(evidence);
+        createCalibrationEvidenceChain(equipmentAsset, evidence);
         return evidence.getId();
     }
 
@@ -94,10 +112,12 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
                 .toList();
     }
 
-    private void validateEquipmentAssetExists(Long equipmentId) {
-        if (equipmentId == null || equipmentAssetMapper.selectById(equipmentId) == null) {
+    private LabEquipmentAssetDO validateEquipmentAssetExists(Long equipmentId) {
+        LabEquipmentAssetDO asset = equipmentId == null ? null : equipmentAssetMapper.selectById(equipmentId);
+        if (asset == null) {
             throw exception(EQUIPMENT_ASSET_NOT_EXISTS);
         }
+        return asset;
     }
 
     private void validateEquipmentTraceabilityExists(Long id) {
@@ -129,6 +149,74 @@ public class LabEquipmentTraceabilityServiceImpl implements LabEquipmentTraceabi
         } catch (DateTimeParseException ignored) {
             return false;
         }
+    }
+
+    private void createCalibrationEvidenceChain(LabEquipmentAssetDO equipmentAsset, LabEquipmentTraceabilityDO evidence) {
+        Long evidenceObjectId = evidenceObjectService.createEvidenceObject(buildCalibrationEvidenceObject(equipmentAsset, evidence));
+
+        LabStandardClauseDO equipmentClause = standardClauseMapper.selectFirstEquipmentClause();
+        LabEvidenceLinkSaveReqVO link = new LabEvidenceLinkSaveReqVO();
+        link.setEvidenceObjectId(evidenceObjectId);
+        link.setLinkedBizType(LINKED_BIZ_TYPE_EQUIPMENT_ASSET);
+        link.setLinkedBizId(equipmentAsset.getId());
+        link.setLinkedBizNo(equipmentAsset.getEquipmentCode());
+        link.setClauseId(equipmentClause == null ? null : equipmentClause.getId());
+        link.setClauseCategory(BUSINESS_DOMAIN_EQUIPMENT);
+        link.setLinkStatus("linked");
+        link.setLinkReason("设备校准证书支撑 CNAS/CMA 设备溯源条款");
+        link.setRemark("由设备校准记录自动生成");
+        evidenceLinkService.createEvidenceLink(link);
+    }
+
+    private LabEvidenceObjectDO buildCalibrationEvidenceObject(LabEquipmentAssetDO equipmentAsset, LabEquipmentTraceabilityDO evidence) {
+        LabEvidenceObjectDO evidenceObject = new LabEvidenceObjectDO();
+        evidenceObject.setEvidenceCode(buildEvidenceCode(equipmentAsset, evidence));
+        evidenceObject.setEvidenceName("设备校准证书-" + nullToEmpty(equipmentAsset.getEquipmentCode()));
+        evidenceObject.setEvidenceType(EVIDENCE_TYPE_EQUIPMENT_CERTIFICATE);
+        evidenceObject.setSourceObject(EVIDENCE_SOURCE_OBJECT);
+        evidenceObject.setSourceObjectId(evidence.getId());
+        evidenceObject.setSourceObjectNo(evidence.getCertificateNo());
+        evidenceObject.setBusinessDomain(BUSINESS_DOMAIN_EQUIPMENT);
+        evidenceObject.setFileUrl(evidence.getCertificateFileUrl());
+        evidenceObject.setFileName(evidence.getCertificateNo());
+        evidenceObject.setFileFormat(resolveFileFormat(evidence.getCertificateFileUrl()));
+        evidenceObject.setIssuedBy(evidence.getCalibrationOrg());
+        evidenceObject.setIssuedAt(parseLocalDate(evidence.getCalibrationDate()));
+        evidenceObject.setValidFrom(parseLocalDate(evidence.getCalibrationDate()));
+        evidenceObject.setValidTo(parseLocalDate(evidence.getValidTo()));
+        evidenceObject.setStatus(STATUS_VALID.equalsIgnoreCase(evidence.getStatus()) ? "effective" : evidence.getStatus());
+        evidenceObject.setSummary(String.format("设备%s的校准证书，证书号%s，结果%s",
+                nullToEmpty(equipmentAsset.getEquipmentCode()),
+                nullToEmpty(evidence.getCertificateNo()),
+                nullToEmpty(evidence.getResult())));
+        return evidenceObject;
+    }
+
+    private String buildEvidenceCode(LabEquipmentAssetDO equipmentAsset, LabEquipmentTraceabilityDO evidence) {
+        return "EQ-CERT-" + equipmentAsset.getId() + "-" + evidence.getId();
+    }
+
+    private String resolveFileFormat(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl) || !fileUrl.contains(".")) {
+            return null;
+        }
+        String suffix = fileUrl.substring(fileUrl.lastIndexOf('.') + 1);
+        return suffix.length() > 32 ? null : suffix.toLowerCase();
+    }
+
+    private LocalDate parseLocalDate(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
 }

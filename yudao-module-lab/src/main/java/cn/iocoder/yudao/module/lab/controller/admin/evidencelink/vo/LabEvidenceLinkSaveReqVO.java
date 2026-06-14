@@ -5,13 +5,16 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Schema(description = "管理后台 - 证据关联创建/修改 Request VO")
 @Data
 public class LabEvidenceLinkSaveReqVO {
 
     private Long id;
 
-    @NotBlank(message = "证据编码不能为空")
+    private Long evidenceObjectId;
+
     @Size(max = 64, message = "证据编码长度不能超过 64 个字符")
     private String evidenceCode;
 
@@ -24,7 +27,6 @@ public class LabEvidenceLinkSaveReqVO {
     @Size(max = 128, message = "证据哈希长度不能超过 128 个字符")
     private String evidenceHash;
 
-    @NotBlank(message = "证据来源对象不能为空")
     @Size(max = 128, message = "证据来源对象长度不能超过 128 个字符")
     private String sourceObject;
 
@@ -42,6 +44,10 @@ public class LabEvidenceLinkSaveReqVO {
     @Size(max = 128, message = "关联业务单号长度不能超过 128 个字符")
     private String linkedBizNo;
 
+    private Long clauseId;
+
+    private Long capabilityScopeId;
+
     @NotBlank(message = "条款业务分类不能为空")
     @Size(max = 64, message = "条款业务分类长度不能超过 64 个字符")
     private String clauseCategory;
@@ -49,6 +55,13 @@ public class LabEvidenceLinkSaveReqVO {
     @NotBlank(message = "关联状态不能为空")
     @Size(max = 32, message = "关联状态长度不能超过 32 个字符")
     private String linkStatus;
+
+    @Size(max = 512, message = "关联原因长度不能超过 512 个字符")
+    private String linkReason;
+
+    private Long verifiedBy;
+
+    private LocalDateTime verifiedAt;
 
     @Size(max = 512, message = "备注长度不能超过 512 个字符")
     private String remark;

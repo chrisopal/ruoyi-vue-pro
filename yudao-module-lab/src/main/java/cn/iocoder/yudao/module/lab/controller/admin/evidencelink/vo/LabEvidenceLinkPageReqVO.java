@@ -17,6 +17,9 @@ import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_
 @ToString(callSuper = true)
 public class LabEvidenceLinkPageReqVO extends PageParam {
 
+    @Schema(description = "证据对象编号", example = "1")
+    private Long evidenceObjectId;
+
     @Schema(description = "证据编码", example = "REPORT")
     private String evidenceCode;
 

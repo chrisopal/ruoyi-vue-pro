@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 @TableName("lab_evidence_link")
 @KeySequence("lab_evidence_link_seq")
 @Data
@@ -15,6 +17,7 @@ public class LabEvidenceLinkDO extends TenantBaseDO {
 
     @TableId
     private Long id;
+    private Long evidenceObjectId;
     private String evidenceCode;
     private String evidenceName;
     private String evidenceUrl;
@@ -25,8 +28,13 @@ public class LabEvidenceLinkDO extends TenantBaseDO {
     private String linkedBizType;
     private Long linkedBizId;
     private String linkedBizNo;
+    private Long clauseId;
+    private Long capabilityScopeId;
     private String clauseCategory;
     private String linkStatus;
+    private String linkReason;
+    private Long verifiedBy;
+    private LocalDateTime verifiedAt;
     private String remark;
 
 }

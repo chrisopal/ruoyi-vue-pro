@@ -30,5 +30,9 @@ public interface ErrorCodeConstants {
     ErrorCode EQUIPMENT_ASSET_NOT_EXISTS = new ErrorCode(1_050_001_017, "设备主档不存在");
     ErrorCode EQUIPMENT_ASSET_CODE_DUPLICATE = new ErrorCode(1_050_001_018, "设备编码已存在");
     ErrorCode EQUIPMENT_TRACEABILITY_NOT_EXISTS = new ErrorCode(1_050_001_019, "设备溯源证据不存在");
+    ErrorCode EVIDENCE_OBJECT_NOT_EXISTS = new ErrorCode(1_050_001_020, "证据对象不存在");
+    ErrorCode EVIDENCE_OBJECT_CODE_DUPLICATE = new ErrorCode(1_050_001_021, "证据对象编码已存在");
+    ErrorCode EVIDENCE_LINK_EVIDENCE_REQUIRED = new ErrorCode(1_050_001_022, "证据关联必须指定证据对象或证据编码");
+    ErrorCode EVIDENCE_LINK_SOURCE_REQUIRED = new ErrorCode(1_050_001_023, "旧模式证据关联必须指定来源对象");
 
 }

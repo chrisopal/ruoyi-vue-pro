@@ -96,8 +96,41 @@ CREATE TABLE IF NOT EXISTS `lab_evidence_type` (
   UNIQUE KEY `uk_lab_evidence_code_tenant_deleted` (`evidence_code`, `tenant_id`, `deleted`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室证据类型';
 
+CREATE TABLE IF NOT EXISTS `lab_evidence_object` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `evidence_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据编码',
+  `evidence_name` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据名称',
+  `evidence_type` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据类型',
+  `source_object` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '来源对象',
+  `source_object_id` bigint NULL DEFAULT NULL COMMENT '来源对象编号',
+  `source_object_no` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '来源对象单号',
+  `business_domain` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '业务域',
+  `file_url` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '文件地址',
+  `file_name` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '文件名',
+  `file_format` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '文件格式',
+  `evidence_hash` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '证据哈希',
+  `issued_by` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '签发机构',
+  `issued_at` date NULL DEFAULT NULL COMMENT '签发日期',
+  `valid_from` date NULL DEFAULT NULL COMMENT '有效期开始',
+  `valid_to` date NULL DEFAULT NULL COMMENT '有效期结束',
+  `status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'effective' COMMENT '状态',
+  `summary` varchar(1024) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '摘要',
+  `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
+  `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
+  `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_lab_evidence_object_code_tenant_deleted` (`evidence_code`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_evidence_object_source` (`source_object`, `source_object_id`, `tenant_id`, `deleted`) USING BTREE,
+  KEY `idx_lab_evidence_object_type_status` (`evidence_type`, `status`, `tenant_id`, `deleted`) USING BTREE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室证据对象';
+
 CREATE TABLE IF NOT EXISTS `lab_evidence_link` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
+  `evidence_object_id` bigint NULL DEFAULT NULL COMMENT '证据对象编号',
   `evidence_code` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '证据编码',
   `evidence_name` varchar(256) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '证据名称',
   `evidence_url` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '证据文件地址',
@@ -108,8 +141,13 @@ CREATE TABLE IF NOT EXISTS `lab_evidence_link` (
   `linked_biz_type` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '关联业务类型',
   `linked_biz_id` bigint NULL DEFAULT NULL COMMENT '关联业务编号',
   `linked_biz_no` varchar(128) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '关联业务单号',
+  `clause_id` bigint NULL DEFAULT NULL COMMENT '条款编号',
+  `capability_scope_id` bigint NULL DEFAULT NULL COMMENT '能力范围编号',
   `clause_category` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '条款业务分类',
   `link_status` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'linked' COMMENT '关联状态',
+  `link_reason` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '关联原因',
+  `verified_by` bigint NULL DEFAULT NULL COMMENT '核验人',
+  `verified_at` datetime NULL DEFAULT NULL COMMENT '核验时间',
   `remark` varchar(512) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL COMMENT '备注',
   `creator` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -118,8 +156,10 @@ CREATE TABLE IF NOT EXISTS `lab_evidence_link` (
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   `tenant_id` bigint NOT NULL DEFAULT 0 COMMENT '租户编号',
   PRIMARY KEY (`id`) USING BTREE,
+  KEY `idx_lab_evidence_link_object` (`evidence_object_id`) USING BTREE,
   KEY `idx_lab_evidence_link_source` (`source_object`, `source_object_no`) USING BTREE,
-  KEY `idx_lab_evidence_link_biz` (`linked_biz_type`, `linked_biz_no`) USING BTREE
+  KEY `idx_lab_evidence_link_biz` (`linked_biz_type`, `linked_biz_no`) USING BTREE,
+  KEY `idx_lab_evidence_link_clause` (`clause_id`, `clause_category`) USING BTREE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '实验室证据关联';
 
 CREATE TABLE IF NOT EXISTS `lab_review_batch` (
@@ -463,7 +503,31 @@ SELECT '条款导出', 'lab:standard-clause:export', 3, 4, @lab_standard_clause_
 WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard-clause:export' AND `deleted` = b'0');
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
-SELECT '证据关联', 'lab:evidence-link:query', 2, 25, @lab_config_menu_id, 'evidence-link', 'ep:connection', 'lab/evidence-link/index', 'LabEvidenceLink', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+SELECT '证据对象', 'lab:evidence-object:query', 2, 25, @lab_config_menu_id, 'evidence-object', 'ep:files', 'lab/evidence-object/index', 'LabEvidenceObject', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+);
+
+SET @lab_evidence_object_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `permission` = 'lab:evidence-object:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '证据对象新增', 'lab:evidence-object:create', 3, 1, @lab_evidence_object_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:create' AND `deleted` = b'0');
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '证据对象修改', 'lab:evidence-object:update', 3, 2, @lab_evidence_object_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:update' AND `deleted` = b'0');
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '证据对象删除', 'lab:evidence-object:delete', 3, 3, @lab_evidence_object_menu_id, '', '', '', NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:delete' AND `deleted` = b'0');
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '证据关联', 'lab:evidence-link:query', 2, 26, @lab_config_menu_id, 'evidence-link', 'ep:connection', 'lab/evidence-link/index', 'LabEvidenceLink', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
   SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-link:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
 );
@@ -666,8 +730,11 @@ WHERE t.`template_code` = 'REPORT_BASIC_V1' AND t.`template_version` = '1.0' AND
     WHERE `template_id` = t.`id` AND `field_code` = f.`field_code` AND `tenant_id` = 1 AND `deleted` = b'0'
   );
 
-INSERT INTO `lab_evidence_link` (`evidence_code`, `source_object`, `source_object_id`, `source_object_no`, `linked_biz_type`, `linked_biz_id`, `linked_biz_no`, `clause_category`, `link_status`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
-SELECT e.`evidence_code`, e.`source_object`, NULL, d.`source_object_no`, 'review_package', NULL, 'RP-MVP-001', e.`clause_category`, 'linked', d.`remark`, 'admin', NOW(), '', NOW(), b'0', 1
+INSERT INTO `lab_evidence_object` (`evidence_code`, `evidence_name`, `evidence_type`, `source_object`, `source_object_id`, `source_object_no`, `business_domain`, `file_url`, `file_name`, `file_format`, `evidence_hash`, `issued_by`, `issued_at`, `valid_from`, `valid_to`, `status`, `summary`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT CONCAT('OBJ-', e.`evidence_code`, '-', d.`source_object_no`), e.`evidence_name`, e.`evidence_code`, e.`source_object`, NULL,
+       d.`source_object_no`, e.`clause_category`, NULL, NULL, NULL,
+       SHA2(CONCAT(e.`evidence_code`, '|', d.`source_object_no`, '|RP-MVP-001'), 256),
+       '系统种子', CURDATE(), CURDATE(), NULL, 'effective', d.`remark`, d.`remark`, 'admin', NOW(), '', NOW(), b'0', 1
 FROM `lab_evidence_type` e
 JOIN (
   SELECT 'REPORT' AS evidence_code, 'RPT-2026-MVP-001' AS source_object_no, '报告可作为报告条款证据' AS remark
@@ -679,9 +746,34 @@ JOIN (
 ) d ON d.`evidence_code` = e.`evidence_code`
 WHERE e.`tenant_id` = 1 AND e.`deleted` = b'0'
   AND NOT EXISTS (
+    SELECT 1 FROM `lab_evidence_object`
+    WHERE `evidence_code` = CONCAT('OBJ-', e.`evidence_code`, '-', d.`source_object_no`)
+      AND `tenant_id` = 1
+      AND `deleted` = b'0'
+  );
+
+INSERT INTO `lab_evidence_link` (`evidence_object_id`, `evidence_code`, `evidence_name`, `evidence_url`, `evidence_hash`, `source_object`, `source_object_id`, `source_object_no`, `linked_biz_type`, `linked_biz_id`, `linked_biz_no`, `clause_id`, `clause_category`, `link_status`, `link_reason`, `remark`, `creator`, `create_time`, `updater`, `update_time`, `deleted`, `tenant_id`)
+SELECT o.`id`, o.`evidence_code`, o.`evidence_name`, o.`file_url`, o.`evidence_hash`, o.`source_object`, o.`source_object_id`, o.`source_object_no`,
+       'review_package', NULL, 'RP-MVP-001', c.`id`, o.`business_domain`, 'linked', d.`remark`, d.`remark`, 'admin', NOW(), '', NOW(), b'0', 1
+FROM `lab_evidence_object` o
+JOIN (
+  SELECT 'REPORT' AS evidence_type, 'RPT-2026-MVP-001' AS source_object_no, '报告可作为报告条款证据' AS remark
+  UNION ALL SELECT 'RAW_DATA', 'RAW-2026-MVP-001', '原始数据可作为技术记录证据'
+  UNION ALL SELECT 'PERSON_AUTH', 'AUTH-TECH-001', '人员授权可作为人员能力证据'
+  UNION ALL SELECT 'EQUIPMENT_CALIBRATION', 'CAL-EQ-001', '设备校准可作为设备溯源证据'
+  UNION ALL SELECT 'ENVIRONMENT_RECORD', 'ENV-REC-001', '环境记录可作为设施环境证据'
+  UNION ALL SELECT 'METHOD_VALIDATION', 'MV-001', '方法验证可作为方法确认/验证证据'
+) d ON d.`evidence_type` = o.`evidence_type` AND d.`source_object_no` = o.`source_object_no`
+LEFT JOIN (
+  SELECT `clause_category`, MIN(`id`) AS `id`
+  FROM `lab_standard_clause`
+  WHERE `tenant_id` = 1 AND `deleted` = b'0'
+  GROUP BY `clause_category`
+) c ON c.`clause_category` = o.`business_domain`
+WHERE o.`tenant_id` = 1 AND o.`deleted` = b'0'
+  AND NOT EXISTS (
     SELECT 1 FROM `lab_evidence_link`
-    WHERE `evidence_code` = e.`evidence_code`
-      AND `source_object_no` = d.`source_object_no`
+    WHERE `evidence_object_id` = o.`id`
       AND `linked_biz_no` = 'RP-MVP-001'
       AND `tenant_id` = 1
       AND `deleted` = b'0'

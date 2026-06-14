@@ -14,6 +14,7 @@ public interface LabEvidenceLinkMapper extends BaseMapperX<LabEvidenceLinkDO> {
 
     default PageResult<LabEvidenceLinkDO> selectPage(LabEvidenceLinkPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<LabEvidenceLinkDO>()
+                .eqIfPresent(LabEvidenceLinkDO::getEvidenceObjectId, reqVO.getEvidenceObjectId())
                 .eqIfPresent(LabEvidenceLinkDO::getEvidenceCode, reqVO.getEvidenceCode())
                 .eqIfPresent(LabEvidenceLinkDO::getSourceObject, reqVO.getSourceObject())
                 .likeIfPresent(LabEvidenceLinkDO::getSourceObjectNo, reqVO.getSourceObjectNo())
@@ -29,6 +30,13 @@ public interface LabEvidenceLinkMapper extends BaseMapperX<LabEvidenceLinkDO> {
                 .eqIfPresent(LabEvidenceLinkDO::getSourceObject, sourceType)
                 .eqIfPresent(LabEvidenceLinkDO::getSourceObjectId, sourceId)
                 .orderByDesc(LabEvidenceLinkDO::getId));
+    }
+
+    default LabEvidenceLinkDO selectByEvidenceObjectAndLinkedBiz(Long evidenceObjectId, String linkedBizType, Long linkedBizId) {
+        return selectOne(new LambdaQueryWrapperX<LabEvidenceLinkDO>()
+                .eq(LabEvidenceLinkDO::getEvidenceObjectId, evidenceObjectId)
+                .eq(LabEvidenceLinkDO::getLinkedBizType, linkedBizType)
+                .eq(LabEvidenceLinkDO::getLinkedBizId, linkedBizId));
     }
 
 }

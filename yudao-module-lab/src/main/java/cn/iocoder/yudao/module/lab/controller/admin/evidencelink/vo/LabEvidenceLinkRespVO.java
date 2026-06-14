@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 public class LabEvidenceLinkRespVO {
 
     private Long id;
+    private Long evidenceObjectId;
     private String evidenceCode;
     private String evidenceName;
     private String evidenceUrl;
@@ -20,8 +21,13 @@ public class LabEvidenceLinkRespVO {
     private String linkedBizType;
     private Long linkedBizId;
     private String linkedBizNo;
+    private Long clauseId;
+    private Long capabilityScopeId;
     private String clauseCategory;
     private String linkStatus;
+    private String linkReason;
+    private Long verifiedBy;
+    private LocalDateTime verifiedAt;
     private String remark;
     private LocalDateTime createTime;
 
