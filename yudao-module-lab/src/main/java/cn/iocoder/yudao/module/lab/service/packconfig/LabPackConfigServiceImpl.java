@@ -2,13 +2,20 @@ package cn.iocoder.yudao.module.lab.service.packconfig;
 
 import cn.iocoder.yudao.module.lab.controller.admin.packconfig.vo.LabPackConfigRespVO;
 import cn.iocoder.yudao.module.lab.controller.admin.packconfig.vo.LabPackConfigSaveReqVO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.domainpack.LabDomainPackDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackEvidenceRequirementDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackQcRuleDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackReportSectionDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackResultFieldDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackSampleRequirementDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackTestItemDO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackWorkflowNodeDO;
 import cn.iocoder.yudao.module.lab.dal.mysql.domainpack.LabDomainPackMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackEvidenceRequirementMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackQcRuleMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackReportSectionMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackResultFieldMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackSampleRequirementMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackTestItemMapper;
 import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackWorkflowNodeMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,6 +31,7 @@ import java.util.Objects;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.DOMAIN_PACK_NOT_EXISTS;
+import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.DOMAIN_PACK_PUBLISHED_IMMUTABLE;
 
 @Service
 @Validated
@@ -40,6 +48,12 @@ public class LabPackConfigServiceImpl implements LabPackConfigService {
     @Resource
     private LabPackReportSectionMapper reportSectionMapper;
     @Resource
+    private LabPackSampleRequirementMapper sampleRequirementMapper;
+    @Resource
+    private LabPackQcRuleMapper qcRuleMapper;
+    @Resource
+    private LabPackEvidenceRequirementMapper evidenceRequirementMapper;
+    @Resource
     private ObjectMapper objectMapper;
 
     @Override
@@ -51,6 +65,9 @@ public class LabPackConfigServiceImpl implements LabPackConfigService {
         respVO.setTestItems(testItemMapper.selectListByDomainPackId(domainPackId).stream().map(this::toTestItem).toList());
         respVO.setResultFields(resultFieldMapper.selectListByDomainPackId(domainPackId).stream().map(this::toResultField).toList());
         respVO.setReportSections(reportSectionMapper.selectListByDomainPackId(domainPackId).stream().map(this::toReportSection).toList());
+        respVO.setSampleRequirements(sampleRequirementMapper.selectListByDomainPackId(domainPackId).stream().map(this::toSampleRequirement).toList());
+        respVO.setQcRules(qcRuleMapper.selectListByDomainPackId(domainPackId).stream().map(this::toQcRule).toList());
+        respVO.setEvidenceRequirements(evidenceRequirementMapper.selectListByDomainPackId(domainPackId).stream().map(this::toEvidenceRequirement).toList());
         return respVO;
     }
 
@@ -58,20 +75,36 @@ public class LabPackConfigServiceImpl implements LabPackConfigService {
     @Transactional(rollbackFor = Exception.class)
     public void savePackConfig(LabPackConfigSaveReqVO saveReqVO) {
         Long domainPackId = saveReqVO.getDomainPackId();
-        validateDomainPackExists(domainPackId);
+        validateDomainPackEditable(domainPackId);
         workflowNodeMapper.deleteByDomainPackId(domainPackId);
         testItemMapper.deleteByDomainPackId(domainPackId);
         resultFieldMapper.deleteByDomainPackId(domainPackId);
         reportSectionMapper.deleteByDomainPackId(domainPackId);
+        sampleRequirementMapper.deleteByDomainPackId(domainPackId);
+        qcRuleMapper.deleteByDomainPackId(domainPackId);
+        evidenceRequirementMapper.deleteByDomainPackId(domainPackId);
         safeList(saveReqVO.getWorkflowNodes()).forEach(item -> workflowNodeMapper.insert(toWorkflowNodeDO(domainPackId, item)));
         safeList(saveReqVO.getTestItems()).forEach(item -> testItemMapper.insert(toTestItemDO(domainPackId, item)));
         safeList(saveReqVO.getResultFields()).forEach(item -> resultFieldMapper.insert(toResultFieldDO(domainPackId, item)));
         safeList(saveReqVO.getReportSections()).forEach(item -> reportSectionMapper.insert(toReportSectionDO(domainPackId, item)));
+        safeList(saveReqVO.getSampleRequirements()).forEach(item -> sampleRequirementMapper.insert(toSampleRequirementDO(domainPackId, item)));
+        safeList(saveReqVO.getQcRules()).forEach(item -> qcRuleMapper.insert(toQcRuleDO(domainPackId, item)));
+        safeList(saveReqVO.getEvidenceRequirements()).forEach(item -> evidenceRequirementMapper.insert(toEvidenceRequirementDO(domainPackId, item)));
     }
 
     private void validateDomainPackExists(Long domainPackId) {
         if (domainPackId == null || domainPackMapper.selectById(domainPackId) == null) {
             throw exception(DOMAIN_PACK_NOT_EXISTS);
+        }
+    }
+
+    private void validateDomainPackEditable(Long domainPackId) {
+        LabDomainPackDO domainPack = domainPackId == null ? null : domainPackMapper.selectById(domainPackId);
+        if (domainPack == null) {
+            throw exception(DOMAIN_PACK_NOT_EXISTS);
+        }
+        if (!"draft".equalsIgnoreCase(domainPack.getStatus())) {
+            throw exception(DOMAIN_PACK_PUBLISHED_IMMUTABLE);
         }
     }
 
@@ -132,6 +165,45 @@ public class LabPackConfigServiceImpl implements LabPackConfigService {
         return section;
     }
 
+    private LabPackSampleRequirementDO toSampleRequirementDO(Long domainPackId, LabPackConfigSaveReqVO.SampleRequirement item) {
+        LabPackSampleRequirementDO requirement = new LabPackSampleRequirementDO();
+        requirement.setDomainPackId(domainPackId);
+        requirement.setRequirementCode(item.getRequirementCode());
+        requirement.setRequirementName(item.getRequirementName());
+        requirement.setRequirementType(item.getRequirementType());
+        requirement.setRequirementText(item.getRequirementText());
+        requirement.setSort(defaultSort(item.getSort()));
+        requirement.setStatus(defaultStatus(item.getStatus()));
+        return requirement;
+    }
+
+    private LabPackQcRuleDO toQcRuleDO(Long domainPackId, LabPackConfigSaveReqVO.QcRule item) {
+        LabPackQcRuleDO rule = new LabPackQcRuleDO();
+        rule.setDomainPackId(domainPackId);
+        rule.setRuleCode(item.getRuleCode());
+        rule.setRuleName(item.getRuleName());
+        rule.setRuleType(item.getRuleType());
+        rule.setRuleExpression(item.getRuleExpression());
+        rule.setAcceptanceCriteria(item.getAcceptanceCriteria());
+        rule.setSort(defaultSort(item.getSort()));
+        rule.setStatus(defaultStatus(item.getStatus()));
+        return rule;
+    }
+
+    private LabPackEvidenceRequirementDO toEvidenceRequirementDO(Long domainPackId, LabPackConfigSaveReqVO.EvidenceRequirement item) {
+        LabPackEvidenceRequirementDO requirement = new LabPackEvidenceRequirementDO();
+        requirement.setDomainPackId(domainPackId);
+        requirement.setRequirementCode(item.getRequirementCode());
+        requirement.setRequirementName(item.getRequirementName());
+        requirement.setEvidenceType(item.getEvidenceType());
+        requirement.setSourceType(item.getSourceType());
+        requirement.setClauseCategory(item.getClauseCategory());
+        requirement.setRequiredFlag(Boolean.TRUE.equals(item.getRequired()));
+        requirement.setSort(defaultSort(item.getSort()));
+        requirement.setStatus(defaultStatus(item.getStatus()));
+        return requirement;
+    }
+
     private LabPackConfigSaveReqVO.WorkflowNode toWorkflowNode(LabPackWorkflowNodeDO node) {
         LabPackConfigSaveReqVO.WorkflowNode item = new LabPackConfigSaveReqVO.WorkflowNode();
         item.setNodeCode(node.getNodeCode());
@@ -182,6 +254,42 @@ public class LabPackConfigServiceImpl implements LabPackConfigService {
         item.setVisible(section.getVisibleFlag());
         item.setSort(section.getSort());
         item.setStatus(section.getStatus());
+        return item;
+    }
+
+    private LabPackConfigSaveReqVO.SampleRequirement toSampleRequirement(LabPackSampleRequirementDO requirement) {
+        LabPackConfigSaveReqVO.SampleRequirement item = new LabPackConfigSaveReqVO.SampleRequirement();
+        item.setRequirementCode(requirement.getRequirementCode());
+        item.setRequirementName(requirement.getRequirementName());
+        item.setRequirementType(requirement.getRequirementType());
+        item.setRequirementText(requirement.getRequirementText());
+        item.setSort(requirement.getSort());
+        item.setStatus(requirement.getStatus());
+        return item;
+    }
+
+    private LabPackConfigSaveReqVO.QcRule toQcRule(LabPackQcRuleDO rule) {
+        LabPackConfigSaveReqVO.QcRule item = new LabPackConfigSaveReqVO.QcRule();
+        item.setRuleCode(rule.getRuleCode());
+        item.setRuleName(rule.getRuleName());
+        item.setRuleType(rule.getRuleType());
+        item.setRuleExpression(rule.getRuleExpression());
+        item.setAcceptanceCriteria(rule.getAcceptanceCriteria());
+        item.setSort(rule.getSort());
+        item.setStatus(rule.getStatus());
+        return item;
+    }
+
+    private LabPackConfigSaveReqVO.EvidenceRequirement toEvidenceRequirement(LabPackEvidenceRequirementDO requirement) {
+        LabPackConfigSaveReqVO.EvidenceRequirement item = new LabPackConfigSaveReqVO.EvidenceRequirement();
+        item.setRequirementCode(requirement.getRequirementCode());
+        item.setRequirementName(requirement.getRequirementName());
+        item.setEvidenceType(requirement.getEvidenceType());
+        item.setSourceType(requirement.getSourceType());
+        item.setClauseCategory(requirement.getClauseCategory());
+        item.setRequired(requirement.getRequiredFlag());
+        item.setSort(requirement.getSort());
+        item.setStatus(requirement.getStatus());
         return item;
     }
 

@@ -27,6 +27,15 @@ public class LabPackConfigSaveReqVO {
     @Valid
     private List<ReportSection> reportSections;
 
+    @Valid
+    private List<SampleRequirement> sampleRequirements;
+
+    @Valid
+    private List<QcRule> qcRules;
+
+    @Valid
+    private List<EvidenceRequirement> evidenceRequirements;
+
     @Schema(description = "流程节点")
     @Data
     public static class WorkflowNode {
@@ -76,6 +85,42 @@ public class LabPackConfigSaveReqVO {
         private String sectionName;
         private String sourceType;
         private Boolean visible;
+        private Integer sort;
+        private String status;
+    }
+
+    @Schema(description = "样品要求")
+    @Data
+    public static class SampleRequirement {
+        private String requirementCode;
+        private String requirementName;
+        private String requirementType;
+        private String requirementText;
+        private Integer sort;
+        private String status;
+    }
+
+    @Schema(description = "质控规则")
+    @Data
+    public static class QcRule {
+        private String ruleCode;
+        private String ruleName;
+        private String ruleType;
+        private String ruleExpression;
+        private String acceptanceCriteria;
+        private Integer sort;
+        private String status;
+    }
+
+    @Schema(description = "证据要求")
+    @Data
+    public static class EvidenceRequirement {
+        private String requirementCode;
+        private String requirementName;
+        private String evidenceType;
+        private String sourceType;
+        private String clauseCategory;
+        private Boolean required;
         private Integer sort;
         private String status;
     }

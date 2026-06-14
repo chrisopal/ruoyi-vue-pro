@@ -14,5 +14,8 @@ public class LabPackConfigRespVO {
     private List<LabPackConfigSaveReqVO.TestItem> testItems;
     private List<LabPackConfigSaveReqVO.ResultField> resultFields;
     private List<LabPackConfigSaveReqVO.ReportSection> reportSections;
+    private List<LabPackConfigSaveReqVO.SampleRequirement> sampleRequirements;
+    private List<LabPackConfigSaveReqVO.QcRule> qcRules;
+    private List<LabPackConfigSaveReqVO.EvidenceRequirement> evidenceRequirements;
 
 }
