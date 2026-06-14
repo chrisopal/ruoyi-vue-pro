@@ -26,5 +26,8 @@ public interface ErrorCodeConstants {
     ErrorCode TEST_TASK_RAW_RECORD_REQUIRED = new ErrorCode(1_051_001_014, "检测任务原始记录不能为空");
     ErrorCode TEST_TASK_REVIEW_REQUIRED = new ErrorCode(1_051_001_015, "检测任务需要技术复核通过后才能进入报告");
     ErrorCode TEST_TASK_REPORT_BLOCKED = new ErrorCode(1_051_001_016, "存在未批准的检测任务，不能生成报告");
+    ErrorCode TEST_RESULT_FIELD_INVALID = new ErrorCode(1_051_001_017, "检测结果字段不符合方向包配置");
+    ErrorCode TEST_QC_RULE_UNSATISFIED = new ErrorCode(1_051_001_018, "检测任务质控规则未满足，不能生成报告");
+    ErrorCode TEST_EVIDENCE_INCOMPLETE = new ErrorCode(1_051_001_019, "检测任务证据链不完整，不能生成报告");
 
 }

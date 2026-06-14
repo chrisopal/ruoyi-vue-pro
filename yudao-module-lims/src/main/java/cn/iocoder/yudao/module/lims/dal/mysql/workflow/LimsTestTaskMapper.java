@@ -22,6 +22,8 @@ public interface LimsTestTaskMapper extends BaseMapperX<LimsTestTaskDO> {
                 .eqIfPresent(LimsTestTaskDO::getStatus, reqVO.getStatus())
                 .eqIfPresent(LimsTestTaskDO::getTaskStatus, reqVO.getTaskStatus())
                 .eqIfPresent(LimsTestTaskDO::getScheduleStatus, reqVO.getScheduleStatus())
+                .geIfPresent(LimsTestTaskDO::getPlannedStartTime, reqVO.getPlannedStartTimeBegin())
+                .leIfPresent(LimsTestTaskDO::getPlannedStartTime, reqVO.getPlannedStartTimeEnd())
                 .orderByDesc(LimsTestTaskDO::getId));
     }
 

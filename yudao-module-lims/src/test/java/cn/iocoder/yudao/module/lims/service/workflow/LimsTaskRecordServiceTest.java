@@ -5,17 +5,26 @@ import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSav
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskQcRecordDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskRawRecordDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskReviewDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskQcRecordMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskRawRecordMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskReviewMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,13 +37,21 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     @Mock
     private LimsTestTaskMapper taskMapper;
     @Mock
+    private LimsTestRequestMapper requestMapper;
+    @Mock
     private LimsTaskRawRecordMapper rawRecordMapper;
     @Mock
     private LimsTaskQcRecordMapper qcRecordMapper;
     @Mock
     private LimsTaskReviewMapper reviewMapper;
     @Mock
+    private LimsTestResultMapper resultMapper;
+    @Mock
     private LimsTaskLifecycleService lifecycleService;
+    @Mock
+    private LimsQualityGateService qualityGateService;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
     void submitRawRecord_shouldPersistRecordAndMoveTaskToDataSubmitted() {
@@ -61,13 +78,12 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
-    void submitRawRecord_shouldUseLifecycleGateForCurrentStatus() {
-        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.ASSIGNED));
+    void submitRawRecord_shouldRejectMissingRecordJsonBeforeInsert() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.TESTING));
+        LimsWorkflowSaveReqVO req = rawReq();
+        req.setRecordJson(null);
 
-        service.submitRawRecord(rawReq());
-
-        verify(lifecycleService).transition(10L, LimsTaskStatus.DATA_SUBMITTED,
-                LimsTaskEventType.RECORD_SUBMITTED, "原始记录已提交", null);
+        assertThrows(Exception.class, () -> service.submitRawRecord(req));
     }
 
     @Test
@@ -90,7 +106,17 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
                 Long.valueOf(10L).equals(update.getId())
                         && LimsTaskReviewStatus.APPROVED.equals(update.getQcStatus())
                         && LimsTaskReviewStatus.PENDING.equals(update.getReviewStatus())
-                        && Boolean.FALSE.equals(update.getReportEligible())));
+                        && Boolean.FALSE.equals(update.getReportEligible())
+                        && update.getBlockReason() == null));
+    }
+
+    @Test
+    void submitQcRecord_shouldRejectMalformedJsonBeforeInsert() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.DATA_SUBMITTED));
+        LimsWorkflowSaveReqVO req = qcReq();
+        req.setQcDataJson("{bad-json");
+
+        assertThrows(Exception.class, () -> service.submitQcRecord(req));
     }
 
     @Test
@@ -113,10 +139,23 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
 
     @Test
     void approveReview_shouldPersistDecisionTransitionAndMarkTaskEligible() {
-        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.REVIEWING));
+        LimsTestTaskDO task = task(10L, LimsTaskStatus.REVIEWING);
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request());
+        when(rawRecordMapper.selectListByTaskId(10L)).thenReturn(List.of(rawRecord()));
+        when(qcRecordMapper.selectListByTaskId(10L)).thenReturn(List.of(qcRecord()));
+        when(reviewMapper.selectListByTaskId(10L)).thenReturn(List.of());
+        when(resultMapper.selectListByTaskId(10L)).thenReturn(List.of(result()));
 
         service.approveReview(reviewReq());
 
+        verify(qualityGateService).assertQcAndEvidenceComplete(argThat((LimsTestRequestDO request) -> Long.valueOf(1L).equals(request.getId())),
+                argThat((List<LimsTestTaskDO> tasks) -> tasks.size() == 1 && Long.valueOf(10L).equals(tasks.get(0).getId())),
+                argThat((Map<Long, List<LimsTaskRawRecordDO>> records) -> records.containsKey(10L)),
+                argThat((Map<Long, List<LimsTaskQcRecordDO>> records) -> records.containsKey(10L)),
+                argThat((Map<Long, List<LimsTaskReviewDO>> records) ->
+                        records.containsKey(10L) && records.get(10L).stream()
+                                .anyMatch(review -> LimsTaskReviewStatus.APPROVED.equals(review.getReviewStatus()))));
         verify(reviewMapper).insert(argThat((LimsTaskReviewDO review) ->
                 Long.valueOf(10L).equals(review.getTaskId())
                         && "REQ-001-T01".equals(review.getTaskNo())
@@ -128,12 +167,27 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
                         && "hash-review-001".equals(review.getSnapshotHash())));
         verify(lifecycleService).transition(10L, LimsTaskStatus.APPROVED,
                 LimsTaskEventType.APPROVED, "批准进入报告", null);
+        verify(resultMapper).update(argThat((LimsTestResultDO result) -> result == null),
+                argThat((UpdateWrapper<LimsTestResultDO> wrapper) -> wrapper != null));
         verify(taskMapper).updateById(argThat((LimsTestTaskDO update) ->
                 Long.valueOf(10L).equals(update.getId())
                         && Long.valueOf(202L).equals(update.getReviewerId())
                         && LimsTaskReviewStatus.APPROVED.equals(update.getReviewStatus())
                         && Boolean.TRUE.equals(update.getReportEligible())
-                        && update.getActualEndTime() != null));
+                        && update.getActualEndTime() != null
+                        && update.getBlockReason() == null));
+    }
+
+    @Test
+    void approveReview_shouldRejectWhenTaskHasNoResultRows() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.REVIEWING));
+        when(requestMapper.selectById(1L)).thenReturn(request());
+        when(rawRecordMapper.selectListByTaskId(10L)).thenReturn(List.of(rawRecord()));
+        when(qcRecordMapper.selectListByTaskId(10L)).thenReturn(List.of(qcRecord()));
+        when(reviewMapper.selectListByTaskId(10L)).thenReturn(List.of());
+        when(resultMapper.selectListByTaskId(10L)).thenReturn(List.of());
+
+        assertThrows(Exception.class, () -> service.approveReview(reviewReq()));
     }
 
     @Test
@@ -214,12 +268,48 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     private static LimsTestTaskDO task(Long id, String status) {
         LimsTestTaskDO task = new LimsTestTaskDO();
         task.setId(id);
+        task.setRequestId(1L);
         task.setTaskNo("REQ-001-T01");
         task.setTaskStatus(status);
         task.setStatus(status);
         task.setReviewStatus(LimsTaskReviewStatus.NONE);
         task.setQcStatus(LimsTaskReviewStatus.NONE);
         return task;
+    }
+
+    private static LimsTestRequestDO request() {
+        LimsTestRequestDO request = new LimsTestRequestDO();
+        request.setId(1L);
+        request.setWorkflowSnapshot("{}");
+        return request;
+    }
+
+    private static LimsTaskRawRecordDO rawRecord() {
+        LimsTaskRawRecordDO record = new LimsTaskRawRecordDO();
+        record.setId(1L);
+        record.setTaskId(10L);
+        record.setRecordType("instrument");
+        record.setRecordJson("{\"temperature\":25}");
+        return record;
+    }
+
+    private static LimsTaskQcRecordDO qcRecord() {
+        LimsTaskQcRecordDO record = new LimsTaskQcRecordDO();
+        record.setId(1L);
+        record.setTaskId(10L);
+        record.setQcType("blank_sample");
+        record.setQcResult("approved");
+        record.setQcRuleSnapshot("{\"ruleCode\":\"BLANK\"}");
+        return record;
+    }
+
+    private static LimsTestResultDO result() {
+        LimsTestResultDO result = new LimsTestResultDO();
+        result.setId(100L);
+        result.setTaskId(10L);
+        result.setTaskNo("REQ-001-T01");
+        result.setStatus("recorded");
+        return result;
     }
 
 }

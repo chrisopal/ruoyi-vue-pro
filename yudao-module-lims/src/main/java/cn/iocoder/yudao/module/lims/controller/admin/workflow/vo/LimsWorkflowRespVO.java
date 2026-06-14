@@ -73,6 +73,9 @@ public class LimsWorkflowRespVO {
     private String reviewTime;
     private String comment;
     private String snapshotHash;
+    private String eventLogJson;
+    private String reviewJson;
+    private String recordJson;
 
     private Long taskId;
     private String resultNo;

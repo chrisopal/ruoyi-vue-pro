@@ -42,6 +42,12 @@ public class LimsWorkflowPageReqVO extends PageParam {
     @Schema(description = "排程状态")
     private String scheduleStatus;
 
+    @Schema(description = "计划开始时间起")
+    private String plannedStartTimeBegin;
+
+    @Schema(description = "计划开始时间止")
+    private String plannedStartTimeEnd;
+
     @Schema(description = "检测场景方案包编号")
     private Long domainPackId;
 

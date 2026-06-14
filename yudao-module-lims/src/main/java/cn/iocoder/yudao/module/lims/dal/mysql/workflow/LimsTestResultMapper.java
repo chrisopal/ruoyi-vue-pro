@@ -28,4 +28,10 @@ public interface LimsTestResultMapper extends BaseMapperX<LimsTestResultDO> {
                 .orderByAsc(LimsTestResultDO::getId));
     }
 
+    default List<LimsTestResultDO> selectListByTaskId(Long taskId) {
+        return selectList(new LambdaQueryWrapperX<LimsTestResultDO>()
+                .eq(LimsTestResultDO::getTaskId, taskId)
+                .orderByAsc(LimsTestResultDO::getId));
+    }
+
 }

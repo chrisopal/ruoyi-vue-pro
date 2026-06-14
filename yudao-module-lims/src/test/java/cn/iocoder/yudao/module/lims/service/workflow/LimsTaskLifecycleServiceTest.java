@@ -74,6 +74,14 @@ class LimsTaskLifecycleServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void transition_shouldRejectAssignedTaskToDataSubmitted() {
+        when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.ASSIGNED));
+
+        assertThrows(Exception.class, () -> service.transition(
+                10L, LimsTaskStatus.DATA_SUBMITTED, LimsTaskEventType.RECORD_SUBMITTED, "原始记录已提交", null));
+    }
+
+    @Test
     void transition_shouldAllowDataSubmittedTaskToReworkForRejectedQc() {
         when(taskMapper.selectById(10L)).thenReturn(task(10L, LimsTaskStatus.DATA_SUBMITTED));
 

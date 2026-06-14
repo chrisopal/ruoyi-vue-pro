@@ -98,6 +98,8 @@ public class LimsWorkflowService {
     @Resource
     private LimsTaskRecordService taskRecordService;
     @Resource
+    private LimsQualityGateService qualityGateService;
+    @Resource
     private ObjectMapper objectMapper;
 
     public Long createRequest(LimsWorkflowSaveReqVO createReqVO) {
@@ -301,6 +303,8 @@ public class LimsWorkflowService {
     @Transactional(rollbackFor = Exception.class)
     public Long createResult(LimsWorkflowSaveReqVO createReqVO) {
         LimsTestTaskDO task = validateTaskExists(createReqVO.getTaskId());
+        LimsTestRequestDO request = validateRequestExists(task.getRequestId());
+        qualityGateService.validateResultValues(request, task, createReqVO.getRawData());
         LimsTestResultDO result = BeanUtils.toBean(createReqVO, LimsTestResultDO.class);
         fillResultFromTask(result, task);
         if (!StringUtils.hasText(result.getStatus())) {

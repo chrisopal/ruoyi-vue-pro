@@ -4,11 +4,18 @@ import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSav
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskQcRecordDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskRawRecordDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskReviewDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskQcRecordMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskRawRecordMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskReviewMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,9 +25,14 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_REQUEST_NOT_EXISTS;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_NOT_EXISTS;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_RAW_RECORD_REQUIRED;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_REPORT_BLOCKED;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_REVIEW_REQUIRED;
 
 @Service
 public class LimsTaskRecordService {
@@ -30,17 +42,28 @@ public class LimsTaskRecordService {
     @Resource
     private LimsTestTaskMapper taskMapper;
     @Resource
+    private LimsTestRequestMapper requestMapper;
+    @Resource
     private LimsTaskRawRecordMapper rawRecordMapper;
     @Resource
     private LimsTaskQcRecordMapper qcRecordMapper;
     @Resource
     private LimsTaskReviewMapper reviewMapper;
     @Resource
+    private LimsTestResultMapper resultMapper;
+    @Resource
     private LimsTaskLifecycleService lifecycleService;
+    @Resource
+    private LimsQualityGateService qualityGateService;
+    @Resource
+    private ObjectMapper objectMapper;
 
     @Transactional(rollbackFor = Exception.class)
     public Long submitRawRecord(LimsWorkflowSaveReqVO reqVO) {
         LimsTestTaskDO task = validateTask(resolveTaskId(reqVO));
+        requireText(reqVO.getRecordType(), TEST_TASK_RAW_RECORD_REQUIRED);
+        requireText(reqVO.getRecordJson(), TEST_TASK_RAW_RECORD_REQUIRED);
+        validateJson(reqVO.getRecordJson(), TEST_TASK_RAW_RECORD_REQUIRED);
         String submittedTime = StringUtils.hasText(reqVO.getSubmittedTime()) ? reqVO.getSubmittedTime() : now();
         LimsTaskRawRecordDO record = new LimsTaskRawRecordDO();
         record.setTaskId(task.getId());
@@ -68,6 +91,10 @@ public class LimsTaskRecordService {
     @Transactional(rollbackFor = Exception.class)
     public Long submitQcRecord(LimsWorkflowSaveReqVO reqVO) {
         LimsTestTaskDO task = validateTask(resolveTaskId(reqVO));
+        requireText(reqVO.getQcType(), TEST_TASK_REVIEW_REQUIRED);
+        requireText(reqVO.getQcResult(), TEST_TASK_REVIEW_REQUIRED);
+        validateJsonIfPresent(reqVO.getQcRuleSnapshot(), TEST_TASK_REVIEW_REQUIRED);
+        validateJsonIfPresent(reqVO.getQcDataJson(), TEST_TASK_REVIEW_REQUIRED);
         LimsTaskQcRecordDO record = new LimsTaskQcRecordDO();
         record.setTaskId(task.getId());
         record.setTaskNo(task.getTaskNo());
@@ -88,6 +115,7 @@ public class LimsTaskRecordService {
         update.setQcStatus(approved ? LimsTaskReviewStatus.APPROVED : LimsTaskReviewStatus.REJECTED);
         if (approved) {
             update.setReviewStatus(LimsTaskReviewStatus.PENDING);
+            update.setBlockReason(null);
         } else {
             update.setBlockReason(reason);
         }
@@ -102,8 +130,9 @@ public class LimsTaskRecordService {
         String reviewTime = now();
         String remark = fallback(reqVO.getRemark(), "技术复核通过");
         LimsTaskReviewDO review = buildReview(task, reqVO, LimsTaskReviewStatus.APPROVED, reviewTime, remark);
+        assertQualityGateSatisfied(task, review);
+        approveTaskResults(task.getId(), reqVO.getReviewerId(), reviewTime);
         reviewMapper.insert(review);
-
         lifecycleService.transition(task.getId(), LimsTaskStatus.APPROVED,
                 LimsTaskEventType.APPROVED, remark, null);
         LimsTestTaskDO update = new LimsTestTaskDO();
@@ -112,6 +141,7 @@ public class LimsTaskRecordService {
         update.setReviewStatus(LimsTaskReviewStatus.APPROVED);
         update.setReportEligible(true);
         update.setActualEndTime(reviewTime);
+        update.setBlockReason(null);
         taskMapper.updateById(update);
     }
 
@@ -153,12 +183,42 @@ public class LimsTaskRecordService {
         return review;
     }
 
+    private void assertQualityGateSatisfied(LimsTestTaskDO task, LimsTaskReviewDO currentReview) {
+        LimsTestRequestDO request = validateRequest(task.getRequestId());
+        List<LimsTaskReviewDO> reviews = new java.util.ArrayList<>(reviewMapper.selectListByTaskId(task.getId()));
+        reviews.add(currentReview);
+        qualityGateService.assertQcAndEvidenceComplete(request, List.of(task),
+                Map.of(task.getId(), rawRecordMapper.selectListByTaskId(task.getId())),
+                Map.of(task.getId(), qcRecordMapper.selectListByTaskId(task.getId())),
+                Map.of(task.getId(), reviews));
+    }
+
+    private void approveTaskResults(Long taskId, Long reviewerId, String reviewTime) {
+        List<LimsTestResultDO> results = resultMapper.selectListByTaskId(taskId);
+        if (results.isEmpty()) {
+            throw exception(TEST_TASK_REPORT_BLOCKED);
+        }
+        resultMapper.update(null, new UpdateWrapper<LimsTestResultDO>()
+                .eq("task_id", taskId)
+                .set("status", LimsTaskReviewStatus.APPROVED)
+                .set("reviewer_id", reviewerId)
+                .set("reviewed_time", reviewTime));
+    }
+
     private LimsTestTaskDO validateTask(Long taskId) {
         LimsTestTaskDO task = taskId == null ? null : taskMapper.selectById(taskId);
         if (task == null) {
             throw exception(TEST_TASK_NOT_EXISTS);
         }
         return task;
+    }
+
+    private LimsTestRequestDO validateRequest(Long requestId) {
+        LimsTestRequestDO request = requestId == null ? null : requestMapper.selectById(requestId);
+        if (request == null) {
+            throw exception(TEST_REQUEST_NOT_EXISTS);
+        }
+        return request;
     }
 
     private Long resolveTaskId(LimsWorkflowSaveReqVO reqVO) {
@@ -177,6 +237,26 @@ public class LimsTaskRecordService {
 
     private String fallback(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    private void requireText(String value, cn.iocoder.yudao.framework.common.exception.ErrorCode errorCode) {
+        if (!StringUtils.hasText(value)) {
+            throw exception(errorCode);
+        }
+    }
+
+    private void validateJsonIfPresent(String value, cn.iocoder.yudao.framework.common.exception.ErrorCode errorCode) {
+        if (StringUtils.hasText(value)) {
+            validateJson(value, errorCode);
+        }
+    }
+
+    private void validateJson(String value, cn.iocoder.yudao.framework.common.exception.ErrorCode errorCode) {
+        try {
+            objectMapper.readTree(value);
+        } catch (JsonProcessingException ex) {
+            throw exception(errorCode);
+        }
     }
 
     private static String now() {

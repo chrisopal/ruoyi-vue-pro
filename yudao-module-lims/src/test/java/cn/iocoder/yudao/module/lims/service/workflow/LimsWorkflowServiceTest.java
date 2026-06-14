@@ -76,6 +76,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsReportEligibilityService reportEligibilityService;
     @Mock
     private LimsTaskRecordService taskRecordService;
+    @Mock
+    private LimsQualityGateService qualityGateService;
     @Spy
     private ReportDraftPlanFactory reportDraftPlanFactory = new ReportDraftPlanFactory(new ObjectMapper());
     @Spy
@@ -316,6 +318,7 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         task.setTaskStatus(LimsTaskStatus.TESTING);
         task.setStatus(LimsTaskStatus.TESTING);
         when(taskMapper.selectById(20L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
         when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(task));
 
         workflowService.createResult(resultReq());
@@ -325,6 +328,9 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && Long.valueOf(20L).equals(result.getTaskId())
                         && "REQ-2026-001-T01".equals(result.getTaskNo())
                         && "recorded".equals(result.getStatus())));
+        verify(qualityGateService).validateResultValues(argThat((LimsTestRequestDO request) -> Long.valueOf(1L).equals(request.getId())),
+                argThat((LimsTestTaskDO validatedTask) -> Long.valueOf(20L).equals(validatedTask.getId())),
+                argThat(rawData -> rawData.contains("resultValues")));
         verify(taskLifecycleService).transition(20L, LimsTaskStatus.DATA_SUBMITTED,
                 LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
         verify(taskLifecycleService).transition(20L, LimsTaskStatus.REVIEWING,
