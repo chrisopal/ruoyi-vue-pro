@@ -63,9 +63,7 @@ public class LabDomainPackServiceImpl implements LabDomainPackService {
         validateDomainPackVersionUnique(null, createReqVO.getPackCode(), createReqVO.getPackVersion());
 
         LabDomainPackDO domainPack = BeanUtils.toBean(createReqVO, LabDomainPackDO.class);
-        if (!StringUtils.hasText(domainPack.getStatus())) {
-            domainPack.setStatus(STATUS_DRAFT);
-        }
+        domainPack.setStatus(STATUS_DRAFT);
         domainPackMapper.insert(domainPack);
         return domainPack.getId();
     }
@@ -78,6 +76,7 @@ public class LabDomainPackServiceImpl implements LabDomainPackService {
         validateDomainPackVersionUnique(updateReqVO.getId(), updateReqVO.getPackCode(), updateReqVO.getPackVersion());
 
         LabDomainPackDO updateObj = BeanUtils.toBean(updateReqVO, LabDomainPackDO.class);
+        updateObj.setStatus(existing.getStatus());
         domainPackMapper.updateById(updateObj);
     }
 

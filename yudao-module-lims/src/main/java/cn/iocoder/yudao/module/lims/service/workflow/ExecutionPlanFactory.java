@@ -8,6 +8,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+
 @Service
 public class ExecutionPlanFactory {
 
@@ -25,7 +30,7 @@ public class ExecutionPlanFactory {
         plan.put("domainPackId", snapshot.path("domainPackId").asLong());
         plan.put("packCode", snapshot.path("packCode").asText(""));
         plan.put("packVersion", snapshot.path("packVersion").asText(""));
-        plan.put("workflowSnapshotHash", snapshot.path("workflowSnapshotHash").asText(""));
+        plan.put("workflowSnapshotHash", sha256(workflowSnapshotJson));
         plan.put("frozenAt", snapshot.path("frozenAt").asText(""));
         plan.set("workflowNodes", copyArray(snapshot.path("workflowNodes")));
         plan.set("sampleRequirements", copyArray(snapshot.path("sampleRequirements")));
@@ -91,6 +96,15 @@ public class ExecutionPlanFactory {
             return objectMapper.readTree(json);
         } catch (JsonProcessingException ex) {
             return objectMapper.createObjectNode();
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest((value == null ? "" : value).getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", ex);
         }
     }
 

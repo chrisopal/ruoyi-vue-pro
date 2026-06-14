@@ -22,6 +22,7 @@ class ExecutionPlanFactoryTest {
         assertEquals(1L, plan.path("domainPackId").asLong());
         assertEquals("FOOD_ROUTINE", plan.path("packCode").asText());
         assertEquals("1.0", plan.path("packVersion").asText());
+        assertEquals(64, plan.path("workflowSnapshotHash").asText().length());
         assertEquals("sample_receive", plan.path("workflowNodes").get(0).path("nodeCode").asText());
         assertEquals("SAMPLE_QTY", plan.path("sampleRequirements").get(0).path("requirementCode").asText());
 

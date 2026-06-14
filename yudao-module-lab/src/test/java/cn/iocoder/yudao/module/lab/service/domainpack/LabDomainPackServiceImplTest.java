@@ -61,6 +61,19 @@ class LabDomainPackServiceImplTest extends BaseMockitoUnitTest {
     private LabPackEvidenceRequirementMapper evidenceRequirementMapper;
 
     @Test
+    void createDomainPack_shouldAlwaysStartAsDraft() {
+        when(domainProfileService.getDomainProfile(10L)).thenReturn(new LabDomainProfileDO());
+        when(domainPackMapper.selectByPackCodeAndVersion("FOOD_ROUTINE", "1.0")).thenReturn(null);
+
+        service.createDomainPack(saveReq(null, "FOOD_ROUTINE", "1.0", "published"));
+
+        verify(domainPackMapper).insert(argThat((LabDomainPackDO pack) ->
+                "FOOD_ROUTINE".equals(pack.getPackCode())
+                        && "1.0".equals(pack.getPackVersion())
+                        && "draft".equals(pack.getStatus())));
+    }
+
+    @Test
     void updateDomainPack_shouldRejectPublishedPack() {
         LabDomainPackDO existing = domainPack(1L, "FOOD_ROUTINE", "1.0", "published");
         when(domainPackMapper.selectById(1L)).thenReturn(existing);
@@ -128,6 +141,21 @@ class LabDomainPackServiceImplTest extends BaseMockitoUnitTest {
         verify(evidenceRequirementMapper).insert(argThat((LabPackEvidenceRequirementDO row) ->
                 row.getId() == null && Long.valueOf(2L).equals(row.getDomainPackId())
                         && "EQUIPMENT_CERT".equals(row.getRequirementCode())));
+    }
+
+    @Test
+    void updateDomainPack_shouldPreserveDraftStatusWhenRequestTriesToPublish() {
+        LabDomainPackDO existing = domainPack(1L, "FOOD_ROUTINE", "1.0", "draft");
+        when(domainPackMapper.selectById(1L)).thenReturn(existing);
+        when(domainProfileService.getDomainProfile(10L)).thenReturn(new LabDomainProfileDO());
+        when(domainPackMapper.selectByPackCodeAndVersion("FOOD_ROUTINE", "1.0")).thenReturn(existing);
+
+        service.updateDomainPack(saveReq(1L, "FOOD_ROUTINE", "1.0", "published"));
+
+        verify(domainPackMapper).updateById(argThat((LabDomainPackDO pack) -> Long.valueOf(1L).equals(pack.getId())
+                && "FOOD_ROUTINE".equals(pack.getPackCode())
+                && "1.0".equals(pack.getPackVersion())
+                && "draft".equals(pack.getStatus())));
     }
 
     @Test
