@@ -8,6 +8,8 @@ import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -68,6 +70,120 @@ public class LimsQualityGateService {
         }
     }
 
+    public void assertExecutionPlanGatesComplete(JsonNode executionPlan, List<LimsTestTaskDO> tasks,
+                                                 Map<Long, List<LimsTaskRawRecordDO>> rawRecordsByTaskId,
+                                                 Map<Long, List<LimsTaskQcRecordDO>> qcRecordsByTaskId,
+                                                 Map<Long, List<LimsTaskReviewDO>> reviewsByTaskId) {
+        for (LimsTestTaskDO task : tasks) {
+            JsonNode taskPlan = selectTaskPlan(executionPlan, task);
+            TaskQualityGateProgress progress = evaluateTaskGate(task,
+                    selectArray(taskPlan.path("resultFields"), executionPlan.path("resultFieldPlans")),
+                    selectArray(taskPlan.path("qcRules"), executionPlan.path("qcCheckPlans")),
+                    selectArray(taskPlan.path("evidenceRequirements"), executionPlan.path("evidenceRequirementPlans")),
+                    rawRecordsByTaskId.getOrDefault(task.getId(), List.of()),
+                    qcRecordsByTaskId.getOrDefault(task.getId(), List.of()),
+                    reviewsByTaskId.getOrDefault(task.getId(), List.of()));
+            if (!progress.rawRecordSatisfied()) {
+                throw exception(TEST_RESULT_FIELD_INVALID);
+            }
+            if (!progress.qcSatisfied()) {
+                throw exception(TEST_QC_RULE_UNSATISFIED);
+            }
+            if (!progress.equipmentEvidenceSatisfied()
+                    || !progress.personnelEvidenceSatisfied()
+                    || !progress.reviewSatisfied()) {
+                throw exception(TEST_EVIDENCE_INCOMPLETE);
+            }
+        }
+    }
+
+    public TaskQualityGateProgress evaluateTaskGate(LimsTestTaskDO task, JsonNode resultFields, JsonNode qcRules,
+                                                    JsonNode evidenceRequirements,
+                                                    List<LimsTaskRawRecordDO> rawRecords,
+                                                    List<LimsTaskQcRecordDO> qcRecords,
+                                                    List<LimsTaskReviewDO> reviews) {
+        List<LimsTaskRawRecordDO> safeRawRecords = safeList(rawRecords);
+        List<LimsTaskQcRecordDO> safeQcRecords = safeList(qcRecords);
+        List<LimsTaskReviewDO> safeReviews = safeList(reviews);
+        List<JsonNode> activeResultFields = activeArrayItems(resultFields);
+        List<JsonNode> activeQcRules = activeArrayItems(qcRules);
+        List<JsonNode> activeEvidenceRequirements = activeArrayItems(evidenceRequirements);
+        ArrayNode missingRequirements = objectMapper.createArrayNode();
+
+        boolean rawRecordRequired = !activeResultFields.isEmpty()
+                || hasEvidenceRequirement(activeEvidenceRequirements, "RAW", "RECORD");
+        List<JsonNode> missingRequiredFields = missingRequiredResultFields(activeResultFields, safeRawRecords);
+        boolean rawRecordSatisfied = (!rawRecordRequired || !safeRawRecords.isEmpty()) && missingRequiredFields.isEmpty();
+        if (rawRecordRequired && safeRawRecords.isEmpty()) {
+            addMissingRequirement(missingRequirements, "RAW_RECORD", "RAW_RECORD", "原始记录",
+                    "结果字段或证据要求需要原始记录，但当前任务还没有原始记录。");
+        } else {
+            for (JsonNode field : missingRequiredFields) {
+                addMissingRequirement(missingRequirements, "RAW_RESULT_FIELD",
+                        field.path("fieldCode").asText(field.path("code").asText("RESULT_FIELD")),
+                        field.path("fieldName").asText(field.path("name").asText("必填结果字段")),
+                        "必填结果字段未在原始记录 rawData.resultValues 中提交有效值。");
+            }
+        }
+
+        Set<String> approvedRuleCodes = approvedRuleCodes(safeQcRecords);
+        int approvedQcRecordCount = (int) safeQcRecords.stream().filter(record -> isApproved(record.getQcResult())).count();
+        int satisfiedQcRuleCount = 0;
+        for (JsonNode rule : activeQcRules) {
+            String ruleCode = rule.path("ruleCode").asText(rule.path("code").asText(""));
+            boolean satisfied = StringUtils.hasText(ruleCode) ? approvedRuleCodes.contains(ruleCode) : approvedQcRecordCount > 0;
+            if (satisfied) {
+                satisfiedQcRuleCount++;
+            } else {
+                addMissingRequirement(missingRequirements, "QC_RULE",
+                        StringUtils.hasText(ruleCode) ? ruleCode : "QC_RULE",
+                        rule.path("ruleName").asText(rule.path("name").asText("QC 规则")),
+                        "缺少通过的 QC 记录或 QC 记录未覆盖该规则。");
+            }
+        }
+        boolean qcSatisfied = activeQcRules.isEmpty() || satisfiedQcRuleCount == activeQcRules.size();
+
+        boolean equipmentEvidenceRequired = hasEvidenceRequirement(activeEvidenceRequirements, "EQUIPMENT", "CALIBRATION");
+        boolean equipmentEvidenceSatisfied = !equipmentEvidenceRequired || hasEquipmentEvidence(task);
+        if (!equipmentEvidenceSatisfied) {
+            addMissingEvidenceRequirements(missingRequirements, activeEvidenceRequirements,
+                    "EQUIPMENT_EVIDENCE", "设备证据", "设备/校准证据要求未满足。");
+        }
+
+        boolean personnelEvidenceRequired = hasEvidenceRequirement(activeEvidenceRequirements, "PERSON", "PERSONNEL");
+        boolean personnelEvidenceSatisfied = !personnelEvidenceRequired || hasPersonnelEvidence(task);
+        if (!personnelEvidenceSatisfied) {
+            addMissingEvidenceRequirements(missingRequirements, activeEvidenceRequirements,
+                    "PERSONNEL_EVIDENCE", "人员证据", "人员授权证据要求未满足。");
+        }
+
+        int approvedReviewCount = (int) safeReviews.stream().filter(review -> isApproved(review.getReviewStatus())).count();
+        boolean reviewSatisfied = LimsTaskReviewStatus.APPROVED.equalsIgnoreCase(task.getReviewStatus())
+                || approvedReviewCount > 0;
+        if (!reviewSatisfied) {
+            addMissingRequirement(missingRequirements, "TECH_REVIEW", "TECH_REVIEW", "技术复核",
+                    "任务还没有通过技术复核。");
+        }
+
+        return new TaskQualityGateProgress(
+                safeRawRecords.size(),
+                safeQcRecords.size(),
+                approvedQcRecordCount,
+                safeReviews.size(),
+                approvedReviewCount,
+                activeQcRules.size(),
+                satisfiedQcRuleCount,
+                activeEvidenceRequirements.size(),
+                missingRequirements.size(),
+                rawRecordSatisfied,
+                qcSatisfied,
+                equipmentEvidenceSatisfied,
+                personnelEvidenceSatisfied,
+                reviewSatisfied,
+                rawRecordSatisfied && qcSatisfied && equipmentEvidenceSatisfied && personnelEvidenceSatisfied && reviewSatisfied,
+                missingRequirements);
+    }
+
     private void assertQcRulesSatisfied(LimsTestTaskDO task, List<JsonNode> qcRules, List<LimsTaskQcRecordDO> qcRecords) {
         if (qcRules.isEmpty()) {
             return;
@@ -115,6 +231,46 @@ public class LimsQualityGateService {
         }
     }
 
+    private JsonNode selectTaskPlan(JsonNode plan, LimsTestTaskDO task) {
+        JsonNode taskPlans = plan.path("taskPlans");
+        if (!taskPlans.isArray()) {
+            return objectMapper.createObjectNode();
+        }
+        for (JsonNode taskPlan : taskPlans) {
+            if (matchesTaskPlan(taskPlan, task)) {
+                return taskPlan;
+            }
+        }
+        return objectMapper.createObjectNode();
+    }
+
+    private boolean matchesTaskPlan(JsonNode taskPlan, LimsTestTaskDO task) {
+        return sameText(task.getTestItem(), taskPlan.path("itemCode").asText(""))
+                || sameText(task.getTestItem(), taskPlan.path("itemName").asText(""))
+                || sameText(task.getTaskName(), taskPlan.path("itemName").asText(""))
+                || sameText(task.getMethodCode(), taskPlan.path("methodCode").asText(""))
+                || sameText(task.getMethodName(), taskPlan.path("methodName").asText(""));
+    }
+
+    private boolean sameText(String left, String right) {
+        return StringUtils.hasText(left) && StringUtils.hasText(right) && left.equalsIgnoreCase(right);
+    }
+
+    private JsonNode selectArray(JsonNode primary, JsonNode fallback) {
+        if (primary != null && primary.isArray() && primary.size() > 0) {
+            return copyArray(primary);
+        }
+        return copyArray(fallback);
+    }
+
+    private ArrayNode copyArray(JsonNode node) {
+        ArrayNode array = objectMapper.createArrayNode();
+        if (node != null && node.isArray()) {
+            node.forEach(item -> array.add(item.deepCopy()));
+        }
+        return array;
+    }
+
     private List<JsonNode> resultFieldsForTask(JsonNode snapshot, LimsTestTaskDO task) {
         Set<String> itemCodes = itemCodesForTask(snapshot, task);
         return activeArrayItems(snapshot.path("resultFields")).stream()
@@ -154,6 +310,64 @@ public class LimsQualityGateService {
             }
         }
         return values;
+    }
+
+    private List<JsonNode> missingRequiredResultFields(List<JsonNode> resultFields, List<LimsTaskRawRecordDO> rawRecords) {
+        if (rawRecords.isEmpty()) {
+            return resultFields.stream()
+                    .filter(this::isRequiredField)
+                    .toList();
+        }
+        Set<String> submittedFieldCodes = submittedFieldCodes(rawRecords);
+        return resultFields.stream()
+                .filter(this::isRequiredField)
+                .filter(field -> {
+                    String fieldCode = field.path("fieldCode").asText(field.path("code").asText(""));
+                    return StringUtils.hasText(fieldCode) && !submittedFieldCodes.contains(fieldCode);
+                })
+                .toList();
+    }
+
+    private Set<String> submittedFieldCodes(List<LimsTaskRawRecordDO> rawRecords) {
+        Set<String> fieldCodes = new HashSet<>();
+        for (LimsTaskRawRecordDO record : rawRecords) {
+            JsonNode root = readObject(record.getRecordJson());
+            collectSubmittedFieldCodes(root.path("resultValues"), fieldCodes);
+            collectSubmittedFieldCodes(parseMaybeJson(root.path("rawData")).path("resultValues"), fieldCodes);
+            collectSubmittedFieldCodes(root.path("measurements"), fieldCodes);
+        }
+        return fieldCodes;
+    }
+
+    private void collectSubmittedFieldCodes(JsonNode values, Set<String> fieldCodes) {
+        if (!values.isArray()) {
+            return;
+        }
+        for (JsonNode value : values) {
+            String fieldCode = value.path("fieldCode").asText(value.path("code").asText(""));
+            if (StringUtils.hasText(fieldCode) && hasSubmittedValue(value)) {
+                fieldCodes.add(fieldCode);
+            }
+        }
+    }
+
+    private boolean hasSubmittedValue(JsonNode value) {
+        return hasTextValue(value.path("fieldValue")) || hasTextValue(value.path("value"))
+                || hasTextValue(value.path("displayValue")) || hasTextValue(value.path("resultValue"));
+    }
+
+    private boolean hasTextValue(JsonNode value) {
+        return value != null && !value.isMissingNode() && !value.isNull() && StringUtils.hasText(value.asText());
+    }
+
+    private JsonNode parseMaybeJson(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return objectMapper.createObjectNode();
+        }
+        if (node.isTextual()) {
+            return readObject(node.asText());
+        }
+        return node;
     }
 
     private void validateFieldValue(JsonNode field, JsonNode value) {
@@ -212,6 +426,18 @@ public class LimsQualityGateService {
         return false;
     }
 
+    private Set<String> approvedRuleCodes(List<LimsTaskQcRecordDO> qcRecords) {
+        Set<String> ruleCodes = new HashSet<>();
+        for (LimsTaskQcRecordDO record : qcRecords) {
+            if (!isApproved(record.getQcResult())) {
+                continue;
+            }
+            collectRuleCodes(record.getQcRuleSnapshot(), ruleCodes);
+            collectRuleCodes(record.getQcDataJson(), ruleCodes);
+        }
+        return ruleCodes;
+    }
+
     private void collectRuleCodes(String json, Set<String> ruleCodes) {
         JsonNode root = readObject(json);
         collectRuleCode(root, ruleCodes);
@@ -241,6 +467,57 @@ public class LimsQualityGateService {
         if (StringUtils.hasText(ruleCode)) {
             ruleCodes.add(ruleCode);
         }
+    }
+
+    private boolean hasEvidenceRequirement(List<JsonNode> requirements, String evidenceToken, String sourceToken) {
+        for (JsonNode requirement : requirements) {
+            if (!isRequiredEvidence(requirement)) {
+                continue;
+            }
+            String evidenceType = requirement.path("evidenceType").asText("").toUpperCase(Locale.ROOT);
+            String sourceType = requirement.path("sourceType").asText("").toUpperCase(Locale.ROOT);
+            if (evidenceType.contains(evidenceToken) || sourceType.contains(evidenceToken)
+                    || evidenceType.contains(sourceToken) || sourceType.contains(sourceToken)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addMissingEvidenceRequirements(ArrayNode missingRequirements, List<JsonNode> evidenceRequirements,
+                                                String type, String fallbackName, String message) {
+        boolean added = false;
+        for (JsonNode requirement : evidenceRequirements) {
+            if (!isRequiredEvidence(requirement)) {
+                continue;
+            }
+            String evidenceType = requirement.path("evidenceType").asText("").toUpperCase(Locale.ROOT);
+            String sourceType = requirement.path("sourceType").asText("").toUpperCase(Locale.ROOT);
+            boolean matchesEquipment = "EQUIPMENT_EVIDENCE".equals(type)
+                    && (evidenceType.contains("EQUIPMENT") || evidenceType.contains("CALIBRATION")
+                    || sourceType.contains("EQUIPMENT") || sourceType.contains("CALIBRATION"));
+            boolean matchesPersonnel = "PERSONNEL_EVIDENCE".equals(type)
+                    && (evidenceType.contains("PERSON") || sourceType.contains("PERSONNEL"));
+            if (!matchesEquipment && !matchesPersonnel) {
+                continue;
+            }
+            addMissingRequirement(missingRequirements, type,
+                    requirement.path("requirementCode").asText(requirement.path("code").asText(type)),
+                    requirement.path("requirementName").asText(requirement.path("name").asText(fallbackName)),
+                    message);
+            added = true;
+        }
+        if (!added) {
+            addMissingRequirement(missingRequirements, type, type, fallbackName, message);
+        }
+    }
+
+    private void addMissingRequirement(ArrayNode missingRequirements, String type, String code, String name, String message) {
+        ObjectNode missing = missingRequirements.addObject();
+        missing.put("type", type);
+        missing.put("code", code);
+        missing.put("name", name);
+        missing.put("message", message);
     }
 
     private boolean hasEquipmentEvidence(LimsTestTaskDO task) {
@@ -313,6 +590,10 @@ public class LimsQualityGateService {
                 .toList();
     }
 
+    private <T> List<T> safeList(List<T> values) {
+        return values == null ? List.of() : values;
+    }
+
     private String resolveWorkflowSnapshot(LimsTestRequestDO request) {
         return StringUtils.hasText(request.getWorkflowSnapshot()) ? request.getWorkflowSnapshot() : request.getScenarioConfig();
     }
@@ -326,6 +607,24 @@ public class LimsQualityGateService {
         } catch (JsonProcessingException ex) {
             return objectMapper.createObjectNode();
         }
+    }
+
+    public record TaskQualityGateProgress(Integer rawRecordCount,
+                                          Integer qcRecordCount,
+                                          Integer approvedQcRecordCount,
+                                          Integer reviewRecordCount,
+                                          Integer approvedReviewCount,
+                                          Integer qcRuleCount,
+                                          Integer satisfiedQcRuleCount,
+                                          Integer evidenceRequirementCount,
+                                          Integer missingRequirementCount,
+                                          Boolean rawRecordSatisfied,
+                                          Boolean qcSatisfied,
+                                          Boolean equipmentEvidenceSatisfied,
+                                          Boolean personnelEvidenceSatisfied,
+                                          Boolean reviewSatisfied,
+                                          Boolean qualityGateSatisfied,
+                                          JsonNode missingRequirements) {
     }
 
 }

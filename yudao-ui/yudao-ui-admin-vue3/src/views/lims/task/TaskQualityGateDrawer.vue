@@ -206,7 +206,7 @@
         <el-tab-pane :label="`缺口 (${gate?.missingRequirementCount || 0})`" name="missing">
           <el-table :data="asArray(gate?.missingRequirements)" border size="small">
             <el-table-column label="类型" min-width="140">
-              <template #default="{ row }">{{ valueOf(row, ['type']) }}</template>
+              <template #default="{ row }">{{ formatMissingType(valueOf(row, ['type'])) }}</template>
             </el-table-column>
             <el-table-column label="编码" min-width="150">
               <template #default="{ row }">{{ valueOf(row, ['code']) }}</template>
@@ -337,6 +337,18 @@ const formatPack = (value?: LimsTaskQualityGateVO) => {
 
 const formatSatisfied = (value?: boolean) => (value ? '已满足' : '待补齐')
 const getGateTagType = (value?: boolean) => (value ? 'success' : 'warning')
+const MISSING_TYPE_LABELS: Record<string, string> = {
+  RAW_RECORD: '原始记录',
+  RAW_RESULT_FIELD: '原始结果字段',
+  QC_RULE: 'QC 规则',
+  EQUIPMENT_EVIDENCE: '设备证据',
+  PERSONNEL_EVIDENCE: '人员证据',
+  TECH_REVIEW: '技术复核'
+}
+const formatMissingType = (type: string) => {
+  const label = MISSING_TYPE_LABELS[type]
+  return label ? `${label}（${type}）` : type
+}
 
 const open = async (task: LimsTaskVO) => {
   if (!task.id) {

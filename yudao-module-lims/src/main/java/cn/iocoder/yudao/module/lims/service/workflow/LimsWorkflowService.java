@@ -12,9 +12,6 @@ import cn.iocoder.yudao.module.lims.dal.dataobject.resultvalue.LimsTestResultVal
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
-import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskQcRecordDO;
-import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskRawRecordDO;
-import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskReviewDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskScheduleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
@@ -56,12 +53,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
-import java.util.Set;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.*;
@@ -102,6 +96,8 @@ public class LimsWorkflowService {
     private WorkflowSnapshotFactory workflowSnapshotFactory;
     @Resource
     private ExecutionPlanFactory executionPlanFactory;
+    @Resource
+    private ExecutionPlanResolver executionPlanResolver;
     @Resource
     private ReportDraftPlanFactory reportDraftPlanFactory;
     @Resource
@@ -283,7 +279,7 @@ public class LimsWorkflowService {
     public LimsTaskQualityGateRespVO getTaskQualityGate(Long taskId) {
         LimsTestTaskDO task = validateTaskExists(taskId);
         LimsTestRequestDO request = validateRequestExists(task.getRequestId());
-        ResolvedExecutionPlan resolvedPlan = resolveExecutionPlan(request);
+        ExecutionPlanResolver.ResolvedExecutionPlan resolvedPlan = resolveExecutionPlan(request);
         JsonNode plan = resolvedPlan.plan();
         JsonNode taskPlan = selectTaskPlan(plan, task);
         JsonNode reportDraftPlan = objectOrEmpty(plan.path("reportDraftPlan"));
@@ -332,7 +328,10 @@ public class LimsWorkflowService {
         respVO.setPersonnelEvidenceSnapshot(task.getPersonnelEvidenceSnapshot());
         respVO.setHasEquipmentEvidence(hasArrayItems(task.getEquipmentEvidenceSnapshot()));
         respVO.setHasPersonnelEvidence(hasArrayItems(task.getPersonnelEvidenceSnapshot()));
-        applyTaskGateProgress(respVO, task, resultFields, qcRules, evidenceRequirements);
+        fillTaskGateProgress(respVO, qualityGateService.evaluateTaskGate(task, resultFields, qcRules, evidenceRequirements,
+                rawRecordMapper.selectListByTaskId(task.getId()),
+                qcRecordMapper.selectListByTaskId(task.getId()),
+                reviewMapper.selectListByTaskId(task.getId())));
         return respVO;
     }
 
@@ -542,12 +541,8 @@ public class LimsWorkflowService {
         return reportDraftPlan.isMissingNode() ? "{}" : reportDraftPlan.toString();
     }
 
-    private ResolvedExecutionPlan resolveExecutionPlan(LimsTestRequestDO request) {
-        LimsExecutionPlanDO executionPlan = executionPlanMapper.selectByRequestId(request.getId());
-        if (executionPlan != null) {
-            return new ResolvedExecutionPlan(readObject(executionPlan.getPlanJson()), executionPlan.getStatus());
-        }
-        return new ResolvedExecutionPlan(readObject(executionPlanFactory.createPlanJson(resolveWorkflowSnapshot(request))), "derived");
+    private ExecutionPlanResolver.ResolvedExecutionPlan resolveExecutionPlan(LimsTestRequestDO request) {
+        return executionPlanResolver.resolve(request);
     }
 
     private JsonNode selectTaskPlan(JsonNode plan, LimsTestTaskDO task) {
@@ -613,183 +608,24 @@ public class LimsWorkflowService {
         return node.isArray() && node.size() > 0;
     }
 
-    private void applyTaskGateProgress(LimsTaskQualityGateRespVO respVO, LimsTestTaskDO task,
-                                       JsonNode resultFields, JsonNode qcRules, JsonNode evidenceRequirements) {
-        List<LimsTaskRawRecordDO> rawRecords = safeList(rawRecordMapper.selectListByTaskId(task.getId()));
-        List<LimsTaskQcRecordDO> qcRecords = safeList(qcRecordMapper.selectListByTaskId(task.getId()));
-        List<LimsTaskReviewDO> reviews = safeList(reviewMapper.selectListByTaskId(task.getId()));
-        ArrayNode missingRequirements = objectMapper.createArrayNode();
-
-        boolean rawRecordRequired = resultFields.size() > 0 || hasEvidenceRequirement(evidenceRequirements, "RAW", "RECORD");
-        boolean rawRecordSatisfied = !rawRecordRequired || !rawRecords.isEmpty();
-        if (!rawRecordSatisfied) {
-            addMissingRequirement(missingRequirements, "RAW_RECORD", "RAW_RECORD", "原始记录",
-                    "结果字段或证据要求需要原始记录，但当前任务还没有原始记录。");
-        }
-
-        Set<String> approvedRuleCodes = approvedRuleCodes(qcRecords);
-        int approvedQcRecordCount = (int) qcRecords.stream().filter(record -> isApproved(record.getQcResult())).count();
-        int satisfiedQcRuleCount = 0;
-        for (JsonNode rule : copyArray(qcRules)) {
-            String ruleCode = rule.path("ruleCode").asText(rule.path("code").asText(""));
-            boolean satisfied = StringUtils.hasText(ruleCode) ? approvedRuleCodes.contains(ruleCode) : approvedQcRecordCount > 0;
-            if (satisfied) {
-                satisfiedQcRuleCount++;
-            } else {
-                addMissingRequirement(missingRequirements, "QC_RULE",
-                        StringUtils.hasText(ruleCode) ? ruleCode : "QC_RULE",
-                        rule.path("ruleName").asText(rule.path("name").asText("QC 规则")),
-                        "缺少通过的 QC 记录或 QC 记录未覆盖该规则。");
-            }
-        }
-        boolean qcSatisfied = qcRules.size() == 0 || satisfiedQcRuleCount == qcRules.size();
-
-        boolean equipmentEvidenceRequired = hasEvidenceRequirement(evidenceRequirements, "EQUIPMENT", "CALIBRATION");
-        boolean equipmentEvidenceSatisfied = !equipmentEvidenceRequired || Boolean.TRUE.equals(respVO.getHasEquipmentEvidence());
-        if (!equipmentEvidenceSatisfied) {
-            addMissingEvidenceRequirements(missingRequirements, evidenceRequirements,
-                    "EQUIPMENT_EVIDENCE", "设备证据", "设备/校准证据要求未满足。");
-        }
-
-        boolean personnelEvidenceRequired = hasEvidenceRequirement(evidenceRequirements, "PERSON", "PERSONNEL");
-        boolean personnelEvidenceSatisfied = !personnelEvidenceRequired || Boolean.TRUE.equals(respVO.getHasPersonnelEvidence());
-        if (!personnelEvidenceSatisfied) {
-            addMissingEvidenceRequirements(missingRequirements, evidenceRequirements,
-                    "PERSONNEL_EVIDENCE", "人员证据", "人员授权证据要求未满足。");
-        }
-
-        int approvedReviewCount = (int) reviews.stream().filter(review -> isApproved(review.getReviewStatus())).count();
-        boolean reviewSatisfied = LimsTaskReviewStatus.APPROVED.equalsIgnoreCase(task.getReviewStatus())
-                || approvedReviewCount > 0;
-        if (!reviewSatisfied) {
-            addMissingRequirement(missingRequirements, "TECH_REVIEW", "TECH_REVIEW", "技术复核",
-                    "任务还没有通过技术复核。");
-        }
-
-        respVO.setRawRecordCount(rawRecords.size());
-        respVO.setQcRecordCount(qcRecords.size());
-        respVO.setApprovedQcRecordCount(approvedQcRecordCount);
-        respVO.setReviewRecordCount(reviews.size());
-        respVO.setApprovedReviewCount(approvedReviewCount);
-        respVO.setQcRuleCount(qcRules.size());
-        respVO.setSatisfiedQcRuleCount(satisfiedQcRuleCount);
-        respVO.setEvidenceRequirementCount(evidenceRequirements.size());
-        respVO.setMissingRequirementCount(missingRequirements.size());
-        respVO.setRawRecordSatisfied(rawRecordSatisfied);
-        respVO.setQcSatisfied(qcSatisfied);
-        respVO.setEquipmentEvidenceSatisfied(equipmentEvidenceSatisfied);
-        respVO.setPersonnelEvidenceSatisfied(personnelEvidenceSatisfied);
-        respVO.setReviewSatisfied(reviewSatisfied);
-        respVO.setQualityGateSatisfied(rawRecordSatisfied && qcSatisfied && equipmentEvidenceSatisfied
-                && personnelEvidenceSatisfied && reviewSatisfied);
-        respVO.setMissingRequirements(missingRequirements);
-    }
-
-    private <T> List<T> safeList(List<T> values) {
-        return values == null ? List.of() : values;
-    }
-
-    private boolean hasEvidenceRequirement(JsonNode requirements, String evidenceToken, String sourceToken) {
-        for (JsonNode requirement : copyArray(requirements)) {
-            if (requirement.has("required") && !requirement.path("required").asBoolean(true)) {
-                continue;
-            }
-            String evidenceType = requirement.path("evidenceType").asText("").toUpperCase(Locale.ROOT);
-            String sourceType = requirement.path("sourceType").asText("").toUpperCase(Locale.ROOT);
-            if (evidenceType.contains(evidenceToken) || sourceType.contains(evidenceToken)
-                    || evidenceType.contains(sourceToken) || sourceType.contains(sourceToken)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private Set<String> approvedRuleCodes(List<LimsTaskQcRecordDO> qcRecords) {
-        Set<String> ruleCodes = new HashSet<>();
-        for (LimsTaskQcRecordDO record : qcRecords) {
-            if (!isApproved(record.getQcResult())) {
-                continue;
-            }
-            collectRuleCodes(record.getQcRuleSnapshot(), ruleCodes);
-            collectRuleCodes(record.getQcDataJson(), ruleCodes);
-        }
-        return ruleCodes;
-    }
-
-    private void collectRuleCodes(String json, Set<String> ruleCodes) {
-        JsonNode root = readObject(json);
-        collectRuleCode(root, ruleCodes);
-        JsonNode rules = root.path("rules");
-        if (rules.isArray()) {
-            rules.forEach(rule -> collectRuleCode(rule, ruleCodes));
-        }
-        JsonNode ruleCodesNode = root.path("ruleCodes");
-        if (ruleCodesNode.isArray()) {
-            ruleCodesNode.forEach(rule -> addRuleCode(rule.asText(""), ruleCodes));
-        }
-    }
-
-    private void collectRuleCode(JsonNode node, Set<String> ruleCodes) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
-            return;
-        }
-        if (node.isTextual()) {
-            addRuleCode(node.asText(), ruleCodes);
-            return;
-        }
-        addRuleCode(node.path("ruleCode").asText(""), ruleCodes);
-        addRuleCode(node.path("code").asText(""), ruleCodes);
-    }
-
-    private void addRuleCode(String ruleCode, Set<String> ruleCodes) {
-        if (StringUtils.hasText(ruleCode)) {
-            ruleCodes.add(ruleCode);
-        }
-    }
-
-    private boolean isApproved(String value) {
-        if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return LimsTaskReviewStatus.APPROVED.equals(normalized) || "pass".equals(normalized)
-                || "passed".equals(normalized) || "通过".equals(value.trim()) || "合格".equals(value.trim());
-    }
-
-    private void addMissingEvidenceRequirements(ArrayNode missingRequirements, JsonNode evidenceRequirements,
-                                                String type, String fallbackName, String message) {
-        boolean added = false;
-        for (JsonNode requirement : copyArray(evidenceRequirements)) {
-            if (requirement.has("required") && !requirement.path("required").asBoolean(true)) {
-                continue;
-            }
-            String evidenceType = requirement.path("evidenceType").asText("").toUpperCase(Locale.ROOT);
-            String sourceType = requirement.path("sourceType").asText("").toUpperCase(Locale.ROOT);
-            boolean matchesEquipment = "EQUIPMENT_EVIDENCE".equals(type)
-                    && (evidenceType.contains("EQUIPMENT") || evidenceType.contains("CALIBRATION")
-                    || sourceType.contains("EQUIPMENT") || sourceType.contains("CALIBRATION"));
-            boolean matchesPersonnel = "PERSONNEL_EVIDENCE".equals(type)
-                    && (evidenceType.contains("PERSON") || sourceType.contains("PERSONNEL"));
-            if (!matchesEquipment && !matchesPersonnel) {
-                continue;
-            }
-            addMissingRequirement(missingRequirements, type,
-                    requirement.path("requirementCode").asText(requirement.path("code").asText(type)),
-                    requirement.path("requirementName").asText(requirement.path("name").asText(fallbackName)),
-                    message);
-            added = true;
-        }
-        if (!added) {
-            addMissingRequirement(missingRequirements, type, type, fallbackName, message);
-        }
-    }
-
-    private void addMissingRequirement(ArrayNode missingRequirements, String type, String code, String name, String message) {
-        ObjectNode missing = missingRequirements.addObject();
-        missing.put("type", type);
-        missing.put("code", code);
-        missing.put("name", name);
-        missing.put("message", message);
+    private void fillTaskGateProgress(LimsTaskQualityGateRespVO respVO,
+                                      LimsQualityGateService.TaskQualityGateProgress progress) {
+        respVO.setRawRecordCount(progress.rawRecordCount());
+        respVO.setQcRecordCount(progress.qcRecordCount());
+        respVO.setApprovedQcRecordCount(progress.approvedQcRecordCount());
+        respVO.setReviewRecordCount(progress.reviewRecordCount());
+        respVO.setApprovedReviewCount(progress.approvedReviewCount());
+        respVO.setQcRuleCount(progress.qcRuleCount());
+        respVO.setSatisfiedQcRuleCount(progress.satisfiedQcRuleCount());
+        respVO.setEvidenceRequirementCount(progress.evidenceRequirementCount());
+        respVO.setMissingRequirementCount(progress.missingRequirementCount());
+        respVO.setRawRecordSatisfied(progress.rawRecordSatisfied());
+        respVO.setQcSatisfied(progress.qcSatisfied());
+        respVO.setEquipmentEvidenceSatisfied(progress.equipmentEvidenceSatisfied());
+        respVO.setPersonnelEvidenceSatisfied(progress.personnelEvidenceSatisfied());
+        respVO.setReviewSatisfied(progress.reviewSatisfied());
+        respVO.setQualityGateSatisfied(progress.qualityGateSatisfied());
+        respVO.setMissingRequirements(progress.missingRequirements());
     }
 
     public Long generateReport(Long requestId) {
@@ -1284,9 +1120,6 @@ public class LimsWorkflowService {
     }
 
     private record TestItemConfig(String itemName, String methodCode, String methodName, Long durationMinutes) {
-    }
-
-    private record ResolvedExecutionPlan(JsonNode plan, String status) {
     }
 
 }

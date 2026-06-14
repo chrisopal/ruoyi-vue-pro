@@ -10,6 +10,7 @@ import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskReviewMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -18,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -42,18 +44,22 @@ class LimsReportEligibilityServiceTest extends BaseMockitoUnitTest {
     private LimsTaskReviewMapper reviewMapper;
     @Mock
     private LimsQualityGateService qualityGateService;
+    @Mock
+    private ExecutionPlanResolver executionPlanResolver;
 
     @Test
-    void assertRequestReportable_shouldPassWhenTasksAndResultsAreApproved() {
+    void assertRequestReportable_shouldPassWhenTasksAndResultsAreApproved() throws Exception {
         LimsTestRequestDO request = request();
         LimsTestTaskDO approvedTask = task(10L, LimsTaskStatus.APPROVED, true);
         LimsTestTaskDO completedTask = task(20L, LimsTaskStatus.COMPLETED, true);
         when(requestMapper.selectById(1L)).thenReturn(request);
         when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(approvedTask, completedTask));
         when(resultMapper.selectListByRequestId(1L)).thenReturn(List.of(result("approved"), result("approved")));
+        when(executionPlanResolver.resolve(request)).thenReturn(new ExecutionPlanResolver.ResolvedExecutionPlan(
+                new ObjectMapper().readTree("{\"taskPlans\":[]}"), "generated"));
 
         assertDoesNotThrow(() -> service.assertRequestReportable(1L));
-        verify(qualityGateService).assertQcAndEvidenceComplete(eq(request), eq(List.of(approvedTask, completedTask)),
+        verify(qualityGateService).assertExecutionPlanGatesComplete(any(), eq(List.of(approvedTask, completedTask)),
                 anyMap(), anyMap(), anyMap());
     }
 

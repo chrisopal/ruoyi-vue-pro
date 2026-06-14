@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
@@ -109,6 +110,34 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
                 Map.of(10L, List.of(review(LimsTaskReviewStatus.APPROVED)))));
     }
 
+    @Test
+    void assertExecutionPlanGatesComplete_shouldAcceptNestedRawDataResultValues() throws Exception {
+        assertDoesNotThrow(() -> service.assertExecutionPlanGatesComplete(objectMapper.readTree(executionPlanWithTaskGate()),
+                List.of(task()),
+                Map.of(10L, List.of(rawRecord())),
+                Map.of(10L, List.of(qcRecord("approved", "{\"ruleCode\":\"BLANK\"}"))),
+                Map.of(10L, List.of(review(LimsTaskReviewStatus.APPROVED)))));
+    }
+
+    @Test
+    void evaluateTaskGate_shouldExposeMissingRequiredRawResultField() throws Exception {
+        var plan = objectMapper.readTree(executionPlanWithTaskGate());
+        var taskPlan = plan.path("taskPlans").get(0);
+
+        LimsQualityGateService.TaskQualityGateProgress progress = service.evaluateTaskGate(task(),
+                taskPlan.path("resultFields"),
+                taskPlan.path("qcRules"),
+                taskPlan.path("evidenceRequirements"),
+                List.of(rawRecordWithoutRequiredResultValue()),
+                List.of(qcRecord("approved", "{\"ruleCode\":\"BLANK\"}")),
+                List.of(review(LimsTaskReviewStatus.APPROVED)));
+
+        assertEquals(false, progress.rawRecordSatisfied());
+        assertEquals(false, progress.qualityGateSatisfied());
+        assertEquals("RAW_RESULT_FIELD", progress.missingRequirements().get(0).path("type").asText());
+        assertEquals("PH_VALUE", progress.missingRequirements().get(0).path("code").asText());
+    }
+
     private static LimsTestRequestDO request(String snapshot) {
         LimsTestRequestDO request = new LimsTestRequestDO();
         request.setId(1L);
@@ -128,7 +157,14 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
     private static LimsTaskRawRecordDO rawRecord() {
         LimsTaskRawRecordDO record = new LimsTaskRawRecordDO();
         record.setTaskId(10L);
-        record.setRecordJson("{\"temperature\":25}");
+        record.setRecordJson("{\"rawData\":{\"resultValues\":[{\"fieldCode\":\"PH_VALUE\",\"fieldValue\":\"7.1\"}]}}");
+        return record;
+    }
+
+    private static LimsTaskRawRecordDO rawRecordWithoutRequiredResultValue() {
+        LimsTaskRawRecordDO record = new LimsTaskRawRecordDO();
+        record.setTaskId(10L);
+        record.setRecordJson("{\"rawData\":{\"resultValues\":[{\"fieldCode\":\"PH_VALUE\",\"fieldValue\":\"\"}]}}");
         return record;
     }
 
@@ -195,6 +231,30 @@ class LimsQualityGateServiceTest extends BaseMockitoUnitTest {
                     {"evidenceType": "EQUIPMENT_CERTIFICATE", "required": true},
                     {"evidenceType": "PERSON_AUTH", "sourceType": "personnel", "required": true},
                     {"evidenceType": "TECHNICAL_REVIEW", "required": true}
+                  ]
+                }
+                """;
+    }
+
+    private static String executionPlanWithTaskGate() {
+        return """
+                {
+                  "taskPlans": [
+                    {
+                      "itemCode": "PH",
+                      "itemName": "pH",
+                      "resultFields": [
+                        {"fieldCode": "PH_VALUE", "fieldName": "pH值", "fieldType": "number", "required": true}
+                      ],
+                      "qcRules": [
+                        {"ruleCode": "BLANK", "required": true}
+                      ],
+                      "evidenceRequirements": [
+                        {"evidenceType": "RAW_DATA", "required": true},
+                        {"evidenceType": "EQUIPMENT_CERTIFICATE", "required": true},
+                        {"evidenceType": "TECHNICAL_REVIEW", "required": true}
+                      ]
+                    }
                   ]
                 }
                 """;

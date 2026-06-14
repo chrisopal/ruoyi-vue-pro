@@ -41,6 +41,8 @@ public class LimsReportEligibilityService {
     private LimsTaskReviewMapper reviewMapper;
     @Resource
     private LimsQualityGateService qualityGateService;
+    @Resource
+    private ExecutionPlanResolver executionPlanResolver;
 
     public void assertRequestReportable(Long requestId) {
         LimsTestRequestDO request = validateRequest(requestId);
@@ -56,7 +58,8 @@ public class LimsReportEligibilityService {
         if (!allTasksAllowed || !allResultsApproved) {
             throw exception(TEST_TASK_REPORT_BLOCKED);
         }
-        qualityGateService.assertQcAndEvidenceComplete(request, tasks, rawRecordsByTaskId(tasks),
+        ExecutionPlanResolver.ResolvedExecutionPlan executionPlan = executionPlanResolver.resolve(request);
+        qualityGateService.assertExecutionPlanGatesComplete(executionPlan.plan(), tasks, rawRecordsByTaskId(tasks),
                 qcRecordsByTaskId(tasks), reviewsByTaskId(tasks));
     }
 

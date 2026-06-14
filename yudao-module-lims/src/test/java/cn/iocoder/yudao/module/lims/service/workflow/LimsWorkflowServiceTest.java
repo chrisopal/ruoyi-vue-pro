@@ -94,6 +94,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsTaskRecordService taskRecordService;
     @Mock
     private LimsQualityGateService qualityGateService;
+    @Mock
+    private ExecutionPlanResolver executionPlanResolver;
     @Spy
     private ReportDraftPlanFactory reportDraftPlanFactory = new ReportDraftPlanFactory(new ObjectMapper());
     @Spy
@@ -387,9 +389,11 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
-    void getTaskQualityGate_shouldExposeTaskRequirementsFromExecutionPlan() {
-        when(taskMapper.selectById(20L)).thenReturn(taskWithEquipmentEvidence());
-        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+    void getTaskQualityGate_shouldExposeTaskRequirementsFromExecutionPlan() throws Exception {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request);
         LimsExecutionPlanDO plan = new LimsExecutionPlanDO();
         plan.setRequestId(1L);
         plan.setStatus("generated");
@@ -414,10 +418,13 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                   }
                 }
                 """);
-        when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+        when(executionPlanResolver.resolve(request)).thenReturn(new ExecutionPlanResolver.ResolvedExecutionPlan(
+                new ObjectMapper().readTree(plan.getPlanJson()), "generated"));
         when(rawRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(rawRecord()));
         when(qcRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(qcRecord("approved", "{\"rules\":[{\"ruleCode\":\"BLANK\"}]}")));
         when(reviewMapper.selectListByTaskId(20L)).thenReturn(List.of(review(LimsTaskReviewStatus.APPROVED)));
+        when(qualityGateService.evaluateTaskGate(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(satisfiedProgress());
 
         LimsTaskQualityGateRespVO response = workflowService.getTaskQualityGate(20L);
 
@@ -439,7 +446,7 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
-    void getTaskQualityGate_shouldExposeMissingRequirementProgress() {
+    void getTaskQualityGate_shouldExposeMissingRequirementProgress() throws Exception {
         LimsTestTaskDO task = taskWithEquipmentEvidence();
         task.setEquipmentEvidenceSnapshot("[]");
         when(taskMapper.selectById(20L)).thenReturn(task);
@@ -461,10 +468,13 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                   "reportDraftPlan": {}
                 }
                 """);
-        when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+        when(executionPlanResolver.resolve(any())).thenReturn(new ExecutionPlanResolver.ResolvedExecutionPlan(
+                new ObjectMapper().readTree(plan.getPlanJson()), "generated"));
         when(rawRecordMapper.selectListByTaskId(20L)).thenReturn(List.of());
         when(qcRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(qcRecord("rejected", "{\"rules\":[{\"ruleCode\":\"BLANK\"}]}")));
         when(reviewMapper.selectListByTaskId(20L)).thenReturn(List.of());
+        when(qualityGateService.evaluateTaskGate(any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(missingProgress());
 
         LimsTaskQualityGateRespVO response = workflowService.getTaskQualityGate(20L);
 
@@ -682,6 +692,25 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         record.setRecordJson("{\"resultValues\":[{\"fieldCode\":\"PH_VALUE\",\"fieldValue\":\"7.1\"}]}");
         record.setStatus("submitted");
         return record;
+    }
+
+    private static LimsQualityGateService.TaskQualityGateProgress satisfiedProgress() {
+        return new LimsQualityGateService.TaskQualityGateProgress(
+                1, 1, 1, 1, 1, 1, 1, 1, 0,
+                true, true, true, true, true, true,
+                new ObjectMapper().createArrayNode());
+    }
+
+    private static LimsQualityGateService.TaskQualityGateProgress missingProgress() {
+        var missingRequirements = new ObjectMapper().createArrayNode();
+        missingRequirements.addObject().put("type", "RAW_RECORD");
+        missingRequirements.addObject().put("type", "QC_RULE");
+        missingRequirements.addObject().put("type", "EQUIPMENT_EVIDENCE");
+        missingRequirements.addObject().put("type", "TECH_REVIEW");
+        return new LimsQualityGateService.TaskQualityGateProgress(
+                0, 1, 0, 0, 0, 1, 0, 1, 4,
+                false, false, false, true, false, false,
+                missingRequirements);
     }
 
     private static LimsTaskQcRecordDO qcRecord(String result, String ruleSnapshot) {
