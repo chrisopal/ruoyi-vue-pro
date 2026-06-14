@@ -227,13 +227,19 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     }
 
     @Test
-    void generateReport_shouldIncludeEquipmentEvidenceSnapshots() {
+    void generateReport_shouldIncludeEquipmentEvidenceSnapshots() throws Exception {
         LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
         when(requestMapper.selectById(1L)).thenReturn(request);
         when(reportMapper.selectByRequestId(1L)).thenReturn(null);
         when(resultMapper.selectListByRequestId(1L)).thenReturn(List.of(result()));
         when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(taskWithEquipmentEvidence()));
         when(resultValueMapper.selectListByRequestId(1L)).thenReturn(List.of());
+        when(executionPlanResolver.resolve(request)).thenReturn(resolvedPlanWithReportDraftPlan("""
+                {
+                  "templateVersion": "1.0",
+                  "outputFormats": ["WORD", "PDF", "EXCEL"]
+                }
+                """));
 
         workflowService.generateReport(1L);
 
@@ -250,6 +256,33 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && report.getReportOutput().contains("\"format\":\"PDF\"")
                         && report.getReportOutput().contains("\"format\":\"EXCEL\"")
                         && report.getReportOutput().contains("contentHash")));
+    }
+
+    @Test
+    void generateReport_shouldUseFrozenReportDraftPlanOutputs() throws Exception {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(reportMapper.selectByRequestId(1L)).thenReturn(null);
+        when(resultMapper.selectListByRequestId(1L)).thenReturn(List.of(result()));
+        when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(taskWithEquipmentEvidence()));
+        when(resultValueMapper.selectListByRequestId(1L)).thenReturn(List.of());
+        when(executionPlanResolver.resolve(request)).thenReturn(resolvedPlanWithReportDraftPlan("""
+                {
+                  "templateVersion": "FROZEN_REPORT_V9",
+                  "outputFormats": ["EXCEL"]
+                }
+                """));
+
+        workflowService.generateReport(1L);
+
+        verify(reportEligibilityService).assertRequestReportable(1L);
+        verify(reportMapper).insert(argThat((LimsReportDO report) ->
+                "FROZEN_REPORT_V9".equals(report.getTemplateVersion())
+                        && "/lims/report-output/RPT-REQ-2026-001/RPT-REQ-2026-001.xlsx".equals(report.getFileUrl())
+                        && report.getReportOutput().contains("\"primaryFormat\":\"EXCEL\"")
+                        && report.getReportOutput().contains("\"format\":\"EXCEL\"")
+                        && !report.getReportOutput().contains("\"format\":\"PDF\"")
+                        && !report.getReportOutput().contains("\"format\":\"WORD\"")));
     }
 
     @Test
@@ -732,6 +765,15 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         review.setReviewType("technical");
         review.setReviewStatus(status);
         return review;
+    }
+
+    private static ExecutionPlanResolver.ResolvedExecutionPlan resolvedPlanWithReportDraftPlan(String reportDraftPlanJson) throws Exception {
+        String planJson = """
+                {
+                  "reportDraftPlan": %s
+                }
+                """.formatted(reportDraftPlanJson);
+        return new ExecutionPlanResolver.ResolvedExecutionPlan(new ObjectMapper().readTree(planJson), "generated");
     }
 
     private static LimsReportDO report() {

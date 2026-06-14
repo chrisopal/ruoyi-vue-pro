@@ -655,8 +655,7 @@ public class LimsWorkflowService {
     }
 
     private void attachReportOutputs(LimsReportDO report, LimsTestRequestDO request, String reportContent) {
-        JsonNode workflowSnapshot = readObject(resolveWorkflowSnapshot(request));
-        ObjectNode reportDraftPlan = reportDraftPlanFactory.createReportDraftPlan(workflowSnapshot);
+        JsonNode reportDraftPlan = resolveFrozenReportDraftPlan(request);
         String generatedAt = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         ReportOutputBundle outputBundle = reportOutputGenerator.generate(new ReportOutputRequest(
                 report.getReportNo(),
@@ -668,6 +667,14 @@ public class LimsWorkflowService {
         report.setTemplateVersion(reportDraftPlan.path("templateVersion").asText(report.getTemplateVersion()));
         report.setReportOutput(writeJson(outputBundle));
         report.setFileUrl(outputBundle.primaryFileUrl());
+    }
+
+    private JsonNode resolveFrozenReportDraftPlan(LimsTestRequestDO request) {
+        JsonNode reportDraftPlan = executionPlanResolver.resolve(request).plan().path("reportDraftPlan");
+        if (reportDraftPlan.isObject() && reportDraftPlan.size() > 0) {
+            return reportDraftPlan.deepCopy();
+        }
+        return reportDraftPlanFactory.createReportDraftPlan(readObject(resolveWorkflowSnapshot(request)));
     }
 
     public void issueReport(Long id) {

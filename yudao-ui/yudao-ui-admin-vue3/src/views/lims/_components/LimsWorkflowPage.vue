@@ -371,6 +371,10 @@ const resolveActionDefaults = (action: ActionConfig, row: LimsWorkflowVO) => {
 }
 const submitActionForm = async () => {
   if (!actionFormConfig.value) return
+  if (!actionFormConfig.value.url) {
+    message.error('操作地址未配置')
+    return
+  }
   actionFormLoading.value = true
   try {
     if (actionFormConfig.value.method === 'post') await LimsWorkflowApi.postBody(actionFormConfig.value.url, actionFormData.value)
