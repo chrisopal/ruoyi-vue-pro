@@ -10,11 +10,7 @@
     name-label="检测项目"
     :fields="fields"
     :row-actions="rowActions"
-    :defaults="{
-      status: 'recorded',
-      resultConclusion: 'pass',
-      rawData: JSON.stringify({ resultValues: [{ fieldCode: '', fieldValue: '', unit: '', conclusion: 'pass' }] })
-    }"
+    :defaults="{ status: 'recorded', resultConclusion: 'pass' }"
   />
 </template>
 
@@ -30,13 +26,7 @@ const fields = [
   { prop: 'resultValue', label: '结果值' },
   { prop: 'resultUnit', label: '单位' },
   { prop: 'resultConclusion', label: '单项结论' },
-  {
-    prop: 'rawData',
-    label: '原始数据',
-    type: 'textarea',
-    span: 24,
-    placeholder: '{"resultValues":[{"fieldCode":"PH_VALUE","fieldValue":"7.1","unit":"pH","conclusion":"pass"}]}'
-  },
+  { prop: 'rawData', label: '原始数据', type: 'textarea', span: 24 },
   { prop: 'remark', label: '备注', type: 'textarea', span: 24, table: false }
 ]
 const rowActions = [
