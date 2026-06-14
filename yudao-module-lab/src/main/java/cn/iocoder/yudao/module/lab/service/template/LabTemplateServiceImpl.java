@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
+import java.util.Locale;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static cn.iocoder.yudao.module.lab.enums.ErrorCodeConstants.*;
@@ -35,6 +36,7 @@ public class LabTemplateServiceImpl implements LabTemplateService {
     public Long createTemplateVersion(LabTemplateVersionSaveReqVO createReqVO) {
         LabTemplateVersionDO templateVersion = BeanUtils.toBean(createReqVO, LabTemplateVersionDO.class);
         normalizeTemplateVersion(templateVersion);
+        validateDraftStatus(templateVersion.getTemplateStatus());
         templateVersionMapper.insert(templateVersion);
         return templateVersion.getId();
     }
@@ -45,6 +47,7 @@ public class LabTemplateServiceImpl implements LabTemplateService {
         validateTemplateEditable(existing);
         LabTemplateVersionDO templateVersion = BeanUtils.toBean(updateReqVO, LabTemplateVersionDO.class);
         normalizeTemplateVersion(templateVersion);
+        validateDraftStatus(templateVersion.getTemplateStatus());
         templateVersionMapper.updateById(templateVersion);
     }
 
@@ -151,9 +154,17 @@ public class LabTemplateServiceImpl implements LabTemplateService {
     private void normalizeTemplateVersion(LabTemplateVersionDO templateVersion) {
         if (!StringUtils.hasText(templateVersion.getTemplateStatus())) {
             templateVersion.setTemplateStatus(TEMPLATE_STATUS_DRAFT);
+        } else {
+            templateVersion.setTemplateStatus(templateVersion.getTemplateStatus().trim().toLowerCase(Locale.ROOT));
         }
         if (!StringUtils.hasText(templateVersion.getStatus())) {
             templateVersion.setStatus(STATUS_ACTIVE);
+        }
+    }
+
+    private void validateDraftStatus(String templateStatus) {
+        if (!TEMPLATE_STATUS_DRAFT.equals(templateStatus)) {
+            throw exception(TEMPLATE_VERSION_STATUS_INVALID);
         }
     }
 
@@ -165,7 +176,9 @@ public class LabTemplateServiceImpl implements LabTemplateService {
     }
 
     private String resolveTemplateStatus(LabTemplateVersionDO templateVersion) {
-        return StringUtils.hasText(templateVersion.getTemplateStatus()) ? templateVersion.getTemplateStatus() : TEMPLATE_STATUS_DRAFT;
+        return StringUtils.hasText(templateVersion.getTemplateStatus())
+                ? templateVersion.getTemplateStatus().trim().toLowerCase(Locale.ROOT)
+                : TEMPLATE_STATUS_DRAFT;
     }
 
 }

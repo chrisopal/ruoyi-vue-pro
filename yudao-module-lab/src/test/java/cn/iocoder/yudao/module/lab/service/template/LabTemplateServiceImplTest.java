@@ -54,6 +54,35 @@ class LabTemplateServiceImplTest extends BaseMockitoUnitTest {
     }
 
     @Test
+    void createTemplateVersion_shouldRejectPublishedStatus() {
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.createTemplateVersion(saveReq(null, "published")));
+
+        assertEquals(TEMPLATE_VERSION_STATUS_INVALID.getCode(), ex.getCode());
+    }
+
+    @Test
+    void updateTemplateVersion_shouldRejectLifecycleChangeThroughUpdate() {
+        when(templateVersionMapper.selectById(1L)).thenReturn(templateVersion("draft"));
+
+        ServiceException ex = assertThrows(ServiceException.class,
+                () -> service.updateTemplateVersion(saveReq(1L, "published")));
+
+        assertEquals(TEMPLATE_VERSION_STATUS_INVALID.getCode(), ex.getCode());
+    }
+
+    @Test
+    void updateTemplateVersion_shouldKeepDraftStatusWhenEditable() {
+        when(templateVersionMapper.selectById(1L)).thenReturn(templateVersion("draft"));
+
+        service.updateTemplateVersion(saveReq(1L, null));
+
+        verify(templateVersionMapper).updateById(argThat((LabTemplateVersionDO templateVersion) ->
+                Long.valueOf(1L).equals(templateVersion.getId())
+                        && "draft".equals(templateVersion.getTemplateStatus())));
+    }
+
+    @Test
     void publishTemplateVersion_shouldMoveDraftToPublished() {
         when(templateVersionMapper.selectById(1L)).thenReturn(templateVersion("draft"));
 

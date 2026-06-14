@@ -81,15 +81,15 @@
     </el-table>
   </ContentWrap>
 
-  <el-dialog v-model="templateFormVisible" :title="templateFormType === 'create' ? '新增模板版本' : '编辑模板版本'" width="720px">
+  <el-dialog v-model="templateFormVisible" :title="templateFormType === 'create' ? '新增模板版本' : '编辑模板版本'" width="1040px">
     <el-form ref="templateFormRef" :model="templateFormData" :rules="templateRules" label-width="112px">
       <el-row :gutter="16">
         <el-col :span="12"><el-form-item label="方案包编号" prop="domainPackId"><el-input-number v-model="templateFormData.domainPackId" class="w-1/1" :min="1" /></el-form-item></el-col>
         <el-col :span="12">
-          <el-form-item label="发布状态" prop="templateStatus">
-            <el-select v-model="templateFormData.templateStatus" class="w-1/1">
-              <el-option v-for="item in templateStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
+          <el-form-item label="发布状态">
+            <el-tag :type="getTemplateStatusTag(templateFormData.templateStatus)">
+              {{ getTemplateStatusLabel(templateFormData.templateStatus) }}
+            </el-tag>
           </el-form-item>
         </el-col>
       </el-row>
@@ -100,10 +100,73 @@
       <el-form-item label="模板名称" prop="templateName"><el-input v-model="templateFormData.templateName" /></el-form-item>
       <el-form-item label="模板类型" prop="templateType"><el-input v-model="templateFormData.templateType" /></el-form-item>
       <el-form-item label="启用状态" prop="status"><el-input v-model="templateFormData.status" /></el-form-item>
-      <el-form-item label="章节配置" prop="sectionSchema"><el-input v-model="templateFormData.sectionSchema" :autosize="{ minRows: 4, maxRows: 8 }" type="textarea" /></el-form-item>
-      <el-form-item label="输出格式" prop="outputFormats"><el-input v-model="templateFormData.outputFormats" :autosize="{ minRows: 2, maxRows: 4 }" type="textarea" /></el-form-item>
-      <el-form-item label="数据来源" prop="dataSourceSchema"><el-input v-model="templateFormData.dataSourceSchema" :autosize="{ minRows: 3, maxRows: 6 }" type="textarea" /></el-form-item>
-      <el-form-item label="预览配置" prop="previewSchema"><el-input v-model="templateFormData.previewSchema" :autosize="{ minRows: 4, maxRows: 8 }" type="textarea" /></el-form-item>
+      <el-form-item label="输出格式" prop="outputFormats">
+        <el-checkbox-group v-model="selectedOutputFormats">
+          <el-checkbox-button
+            v-for="item in outputFormatOptions"
+            :key="item.value"
+            :value="item.value"
+          >
+            {{ item.label }}
+          </el-checkbox-button>
+        </el-checkbox-group>
+      </el-form-item>
+      <el-form-item label="报告章节" prop="sectionSchema">
+        <div class="w-1/1">
+          <div class="mb-8px flex items-center justify-between">
+            <span class="text-[var(--el-text-color-secondary)] text-12px">配置报告章节顺序、来源和显隐，发布后随模板版本冻结。</span>
+            <el-button plain type="primary" @click="addSection">
+              <Icon class="mr-5px" icon="ep:plus" />新增章节
+            </el-button>
+          </div>
+          <el-table :data="sectionRows" border size="small" row-key="uid">
+            <el-table-column label="编码" min-width="150">
+              <template #default="{ row }"><el-input v-model="row.sectionCode" placeholder="resultTable" /></template>
+            </el-table-column>
+            <el-table-column label="名称" min-width="150">
+              <template #default="{ row }"><el-input v-model="row.sectionName" placeholder="检测结果" /></template>
+            </el-table-column>
+            <el-table-column label="来源" min-width="170">
+              <template #default="{ row }"><el-input v-model="row.sourceType" placeholder="result_values" /></template>
+            </el-table-column>
+            <el-table-column align="center" label="显示" width="80">
+              <template #default="{ row }"><el-switch v-model="row.visible" /></template>
+            </el-table-column>
+            <el-table-column label="排序" width="110">
+              <template #default="{ row }"><el-input-number v-model="row.sort" :min="0" controls-position="right" class="!w-full" /></template>
+            </el-table-column>
+            <el-table-column align="center" label="操作" width="90">
+              <template #default="{ $index }">
+                <el-button link type="danger" @click="removeSection($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-form-item>
+      <el-form-item label="数据来源" prop="dataSourceSchema">
+        <div class="w-1/1">
+          <div class="mb-8px flex items-center justify-between">
+            <span class="text-[var(--el-text-color-secondary)] text-12px">声明报告取数路径，供预览、字段绑定和后续渲染器共用。</span>
+            <el-button plain type="primary" @click="addDataSource">
+              <Icon class="mr-5px" icon="ep:plus" />新增来源
+            </el-button>
+          </div>
+          <el-table :data="dataSourceRows" border size="small" row-key="uid">
+            <el-table-column label="来源编码" min-width="160">
+              <template #default="{ row }"><el-input v-model="row.sourceCode" placeholder="resultValues" /></template>
+            </el-table-column>
+            <el-table-column label="数据路径" min-width="260">
+              <template #default="{ row }"><el-input v-model="row.sourcePath" placeholder="$.resultValues" /></template>
+            </el-table-column>
+            <el-table-column align="center" label="操作" width="90">
+              <template #default="{ $index }">
+                <el-button link type="danger" @click="removeDataSource($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+      </el-form-item>
+      <el-form-item label="预览配置" prop="previewSchema"><el-input v-model="templateFormData.previewSchema" :autosize="{ minRows: 3, maxRows: 6 }" type="textarea" /></el-form-item>
     </el-form>
     <template #footer>
       <el-button type="primary" @click="submitTemplateForm">确 定</el-button>
@@ -154,11 +217,29 @@ const currentTemplateId = ref<number>()
 const currentTemplate = ref<LabTemplateVersionVO>()
 
 type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info'
+type ReportSectionRow = {
+  uid: number
+  sectionCode: string
+  sectionName: string
+  sourceType: string
+  visible: boolean
+  sort: number
+}
+type ReportDataSourceRow = {
+  uid: number
+  sourceCode: string
+  sourcePath: string
+}
 
 const templateStatusOptions: Array<{ label: string; value: string; tag: TagType }> = [
   { label: '草稿', value: 'draft', tag: 'info' },
   { label: '已发布', value: 'published', tag: 'success' },
   { label: '已归档', value: 'archived', tag: 'warning' }
+]
+const outputFormatOptions = [
+  { label: 'Word (.docx)', value: 'WORD' },
+  { label: 'PDF (.pdf)', value: 'PDF' },
+  { label: 'Excel (.xlsx)', value: 'EXCEL' }
 ]
 
 const getTemplateStatusLabel = (status?: string) => {
@@ -187,6 +268,25 @@ const resetQuery = () => { queryFormRef.value.resetFields(); handleQuery() }
 
 const templateFormVisible = ref(false)
 const templateFormType = ref('')
+const sectionRows = ref<ReportSectionRow[]>([])
+const dataSourceRows = ref<ReportDataSourceRow[]>([])
+const selectedOutputFormats = ref<string[]>([])
+let rowSeed = 1
+
+const nextRowId = () => rowSeed++
+const defaultSectionRows = (): ReportSectionRow[] => [
+  { uid: nextRowId(), sectionCode: 'sampleInfo', sectionName: '样品信息', sourceType: 'sample', visible: true, sort: 10 },
+  { uid: nextRowId(), sectionCode: 'resultTable', sectionName: '检测结果', sourceType: 'result_values', visible: true, sort: 20 },
+  { uid: nextRowId(), sectionCode: 'evidenceSummary', sectionName: '证据摘要', sourceType: 'evidence', visible: true, sort: 30 }
+]
+const defaultDataSourceRows = (): ReportDataSourceRow[] => [
+  { uid: nextRowId(), sourceCode: 'report', sourcePath: '$.report' },
+  { uid: nextRowId(), sourceCode: 'sample', sourcePath: '$.sample' },
+  { uid: nextRowId(), sourceCode: 'resultValues', sourcePath: '$.resultValues' },
+  { uid: nextRowId(), sourceCode: 'equipmentEvidence', sourcePath: '$.equipmentEvidenceSnapshots' },
+  { uid: nextRowId(), sourceCode: 'personnelEvidence', sourcePath: '$.personnelEvidenceSnapshots' }
+]
+const defaultOutputFormats = () => ['WORD', 'PDF', 'EXCEL']
 const emptyTemplateForm = (): LabTemplateVersionVO => ({
   domainPackId: 1,
   templateCode: '',
@@ -194,9 +294,9 @@ const emptyTemplateForm = (): LabTemplateVersionVO => ({
   templateVersion: '1.0',
   templateType: 'report',
   templateStatus: 'draft',
-  sectionSchema: '[{"sectionCode":"resultTable","sectionName":"检测结果","sourceType":"result_values","visible":true,"sort":10}]',
-  outputFormats: '["WORD","PDF","EXCEL"]',
-  dataSourceSchema: '{"report":"$.report","sample":"$.sample","resultValues":"$.resultValues","evidenceObjects":"$.equipmentEvidenceSnapshots"}',
+  sectionSchema: JSON.stringify(defaultSectionRows().map(({ uid, ...row }) => row)),
+  outputFormats: JSON.stringify(defaultOutputFormats()),
+  dataSourceSchema: JSON.stringify(Object.fromEntries(defaultDataSourceRows().map((row) => [row.sourceCode, row.sourcePath]))),
   previewSchema: '{"layout":"basic-report-preview"}',
   status: 'active'
 })
@@ -207,7 +307,6 @@ const templateRules = reactive({
   templateName: [{ required: true, message: '模板名称不能为空', trigger: 'blur' }],
   templateVersion: [{ required: true, message: '模板版本不能为空', trigger: 'blur' }],
   templateType: [{ required: true, message: '模板类型不能为空', trigger: 'blur' }],
-  templateStatus: [{ required: true, message: '发布状态不能为空', trigger: 'change' }],
   status: [{ required: true, message: '状态不能为空', trigger: 'blur' }]
 })
 const templateFormRef = ref()
@@ -217,9 +316,13 @@ const openTemplateForm = async (type: string, id?: number) => {
   templateFormVisible.value = true
   templateFormData.value = emptyTemplateForm()
   if (id) templateFormData.value = await LabTemplateApi.getTemplateVersion(id)
+  syncDesignerFromForm()
 }
 const submitTemplateForm = async () => {
   await templateFormRef.value.validate()
+  if (!syncFormFromDesigner()) {
+    return
+  }
   if (templateFormType.value === 'create') {
     await LabTemplateApi.createTemplateVersion(templateFormData.value)
     message.success(t('common.createSuccess'))
@@ -229,6 +332,120 @@ const submitTemplateForm = async () => {
   }
   templateFormVisible.value = false
   await getTemplateList()
+}
+const addSection = () => {
+  sectionRows.value.push({ uid: nextRowId(), sectionCode: '', sectionName: '', sourceType: '', visible: true, sort: sectionRows.value.length * 10 + 10 })
+}
+const removeSection = (index: number) => {
+  sectionRows.value.splice(index, 1)
+}
+const addDataSource = () => {
+  dataSourceRows.value.push({ uid: nextRowId(), sourceCode: '', sourcePath: '' })
+}
+const removeDataSource = (index: number) => {
+  dataSourceRows.value.splice(index, 1)
+}
+const safeJsonParse = (value?: string) => {
+  if (!value) {
+    return undefined
+  }
+  try {
+    return JSON.parse(value)
+  } catch {
+    return undefined
+  }
+}
+const syncDesignerFromForm = () => {
+  sectionRows.value = parseSectionRows(templateFormData.value.sectionSchema)
+  selectedOutputFormats.value = parseOutputFormats(templateFormData.value.outputFormats)
+  dataSourceRows.value = parseDataSourceRows(templateFormData.value.dataSourceSchema)
+  templateFormData.value.templateStatus = templateFormData.value.templateStatus || 'draft'
+}
+const syncFormFromDesigner = () => {
+  const normalizedSections = sectionRows.value
+    .map((row) => ({
+      sectionCode: row.sectionCode?.trim(),
+      sectionName: row.sectionName?.trim(),
+      sourceType: row.sourceType?.trim(),
+      visible: row.visible !== false,
+      sort: Number(row.sort || 0)
+    }))
+    .filter((row) => row.sectionCode && row.sectionName && row.sourceType)
+    .sort((left, right) => left.sort - right.sort)
+  if (!normalizedSections.length) {
+    message.warning('至少需要维护一个报告章节')
+    return false
+  }
+  const formats = selectedOutputFormats.value.filter((format) =>
+    outputFormatOptions.some((option) => option.value === format)
+  )
+  if (!formats.length) {
+    message.warning('至少需要选择一种报告输出格式')
+    return false
+  }
+  const dataSourceEntries = dataSourceRows.value
+    .map((row) => [row.sourceCode?.trim(), row.sourcePath?.trim()] as const)
+    .filter(([sourceCode, sourcePath]) => sourceCode && sourcePath)
+  if (!dataSourceEntries.length) {
+    message.warning('至少需要维护一个报告数据来源')
+    return false
+  }
+  templateFormData.value.templateStatus = 'draft'
+  templateFormData.value.sectionSchema = JSON.stringify(normalizedSections)
+  templateFormData.value.outputFormats = JSON.stringify(Array.from(new Set(formats)))
+  templateFormData.value.dataSourceSchema = JSON.stringify(Object.fromEntries(dataSourceEntries))
+  return true
+}
+const parseSectionRows = (value?: string): ReportSectionRow[] => {
+  const parsed = safeJsonParse(value)
+  const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.sections) ? parsed.sections : []
+  const rows = list
+    .map((item: any, index: number) => ({
+      uid: nextRowId(),
+      sectionCode: String(item?.sectionCode || item?.code || ''),
+      sectionName: String(item?.sectionName || item?.name || ''),
+      sourceType: String(item?.sourceType || item?.source || ''),
+      visible: item?.visible !== false,
+      sort: Number(item?.sort ?? (index + 1) * 10)
+    }))
+    .filter((row) => row.sectionCode || row.sectionName || row.sourceType)
+  return rows.length ? rows : defaultSectionRows()
+}
+const parseOutputFormats = (value?: string): string[] => {
+  const parsed = safeJsonParse(value)
+  const values = Array.isArray(parsed)
+    ? parsed
+    : value
+      ? value.split(',').map((item) => item.trim())
+      : []
+  const formats = values
+    .map((item) => String(item).toUpperCase())
+    .filter((format) => outputFormatOptions.some((option) => option.value === format))
+  return formats.length ? Array.from(new Set(formats)) : defaultOutputFormats()
+}
+const parseDataSourceRows = (value?: string): ReportDataSourceRow[] => {
+  const parsed = safeJsonParse(value)
+  if (Array.isArray(parsed)) {
+    const rows = parsed
+      .map((item: any) => ({
+        uid: nextRowId(),
+        sourceCode: String(item?.sourceCode || item?.code || ''),
+        sourcePath: String(item?.sourcePath || item?.path || '')
+      }))
+      .filter((row) => row.sourceCode || row.sourcePath)
+    return rows.length ? rows : defaultDataSourceRows()
+  }
+  if (parsed && typeof parsed === 'object') {
+    const rows = Object.entries(parsed)
+      .map(([sourceCode, sourcePath]) => ({
+        uid: nextRowId(),
+        sourceCode,
+        sourcePath: String(sourcePath || '')
+      }))
+      .filter((row) => row.sourceCode || row.sourcePath)
+    return rows.length ? rows : defaultDataSourceRows()
+  }
+  return defaultDataSourceRows()
 }
 const handleDeleteTemplate = async (id: number) => {
   await message.delConfirm()
