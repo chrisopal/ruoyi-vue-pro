@@ -11,6 +11,8 @@ import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSav
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskQcRecordDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskRawRecordDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskReviewDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
@@ -19,6 +21,9 @@ import cn.iocoder.yudao.module.lims.dal.mysql.resultvalue.LimsTestResultValueMap
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsExecutionPlanMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsReportMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsSampleMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskQcRecordMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskRawRecordMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskReviewMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestResultMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
@@ -67,6 +72,12 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsReportMapper reportMapper;
     @Mock
     private LimsExecutionPlanMapper executionPlanMapper;
+    @Mock
+    private LimsTaskRawRecordMapper rawRecordMapper;
+    @Mock
+    private LimsTaskQcRecordMapper qcRecordMapper;
+    @Mock
+    private LimsTaskReviewMapper reviewMapper;
     @Mock
     private DomainPackGateway domainPackGateway;
     @Mock
@@ -392,7 +403,7 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                       "sampleRequirements": [{"requirementCode": "SAMPLE_QTY"}],
                       "resultFields": [{"fieldCode": "PH_VALUE", "fieldName": "pH值"}],
                       "qcRules": [{"ruleCode": "BLANK", "ruleName": "空白样"}],
-                      "evidenceRequirements": [{"requirementCode": "EQUIPMENT_CERT"}],
+                      "evidenceRequirements": [{"requirementCode": "EQUIPMENT_CERT", "evidenceType": "EQUIPMENT_CERTIFICATE"}],
                       "reportSections": [{"sectionCode": "RESULTS"}]
                     }
                   ],
@@ -404,6 +415,9 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                 }
                 """);
         when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+        when(rawRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(rawRecord()));
+        when(qcRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(qcRecord("approved", "{\"rules\":[{\"ruleCode\":\"BLANK\"}]}")));
+        when(reviewMapper.selectListByTaskId(20L)).thenReturn(List.of(review(LimsTaskReviewStatus.APPROVED)));
 
         LimsTaskQualityGateRespVO response = workflowService.getTaskQualityGate(20L);
 
@@ -416,6 +430,54 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         assertEquals("REPORT_BASIC_V1", response.getTemplateCodes().get(0).asText());
         assertEquals("BLANK", response.getQcRuleSnapshot().path("rules").get(0).path("ruleCode").asText());
         assertEquals(true, response.getHasEquipmentEvidence());
+        assertEquals(1, response.getRawRecordCount());
+        assertEquals(1, response.getApprovedQcRecordCount());
+        assertEquals(1, response.getApprovedReviewCount());
+        assertEquals(1, response.getSatisfiedQcRuleCount());
+        assertEquals(0, response.getMissingRequirementCount());
+        assertEquals(true, response.getQualityGateSatisfied());
+    }
+
+    @Test
+    void getTaskQualityGate_shouldExposeMissingRequirementProgress() {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        task.setEquipmentEvidenceSnapshot("[]");
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+        LimsExecutionPlanDO plan = new LimsExecutionPlanDO();
+        plan.setRequestId(1L);
+        plan.setStatus("generated");
+        plan.setPlanJson("""
+                {
+                  "taskPlans": [
+                    {
+                      "itemCode": "PH",
+                      "itemName": "pH",
+                      "resultFields": [{"fieldCode": "PH_VALUE"}],
+                      "qcRules": [{"ruleCode": "BLANK", "ruleName": "空白样"}],
+                      "evidenceRequirements": [{"requirementCode": "EQUIPMENT_CERT", "evidenceType": "EQUIPMENT_CERTIFICATE"}]
+                    }
+                  ],
+                  "reportDraftPlan": {}
+                }
+                """);
+        when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+        when(rawRecordMapper.selectListByTaskId(20L)).thenReturn(List.of());
+        when(qcRecordMapper.selectListByTaskId(20L)).thenReturn(List.of(qcRecord("rejected", "{\"rules\":[{\"ruleCode\":\"BLANK\"}]}")));
+        when(reviewMapper.selectListByTaskId(20L)).thenReturn(List.of());
+
+        LimsTaskQualityGateRespVO response = workflowService.getTaskQualityGate(20L);
+
+        assertEquals(false, response.getRawRecordSatisfied());
+        assertEquals(false, response.getQcSatisfied());
+        assertEquals(false, response.getEquipmentEvidenceSatisfied());
+        assertEquals(false, response.getReviewSatisfied());
+        assertEquals(false, response.getQualityGateSatisfied());
+        assertEquals(4, response.getMissingRequirementCount());
+        assertEquals("RAW_RECORD", response.getMissingRequirements().get(0).path("type").asText());
+        assertEquals("QC_RULE", response.getMissingRequirements().get(1).path("type").asText());
+        assertEquals("EQUIPMENT_EVIDENCE", response.getMissingRequirements().get(2).path("type").asText());
+        assertEquals("TECH_REVIEW", response.getMissingRequirements().get(3).path("type").asText());
     }
 
     @Test
@@ -609,6 +671,38 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         task.setEquipmentSnapshot("{\"equipmentCode\":\"PH-METER-001\",\"equipmentName\":\"酸度计\"}");
         task.setEquipmentEvidenceSnapshot("[{\"certificateNo\":\"CERT-001\",\"validTo\":\"2099-12-31\"}]");
         return task;
+    }
+
+    private static LimsTaskRawRecordDO rawRecord() {
+        LimsTaskRawRecordDO record = new LimsTaskRawRecordDO();
+        record.setId(1L);
+        record.setTaskId(20L);
+        record.setTaskNo("REQ-2026-001-T01");
+        record.setRecordType("instrument");
+        record.setRecordJson("{\"resultValues\":[{\"fieldCode\":\"PH_VALUE\",\"fieldValue\":\"7.1\"}]}");
+        record.setStatus("submitted");
+        return record;
+    }
+
+    private static LimsTaskQcRecordDO qcRecord(String result, String ruleSnapshot) {
+        LimsTaskQcRecordDO record = new LimsTaskQcRecordDO();
+        record.setId(1L);
+        record.setTaskId(20L);
+        record.setTaskNo("REQ-2026-001-T01");
+        record.setQcType("routine_qc");
+        record.setQcRuleSnapshot(ruleSnapshot);
+        record.setQcResult(result);
+        return record;
+    }
+
+    private static LimsTaskReviewDO review(String status) {
+        LimsTaskReviewDO review = new LimsTaskReviewDO();
+        review.setId(1L);
+        review.setTaskId(20L);
+        review.setTaskNo("REQ-2026-001-T01");
+        review.setReviewType("technical");
+        review.setReviewStatus(status);
+        return review;
     }
 
     private static LimsReportDO report() {

@@ -32,6 +32,7 @@ public class LimsTaskQualityGateRespVO {
     private JsonNode dataBindings;
     private JsonNode reportDraftPlan;
     private JsonNode qcRuleSnapshot;
+    private JsonNode missingRequirements;
 
     private String taskStatus;
     private String scheduleStatus;
@@ -47,5 +48,21 @@ public class LimsTaskQualityGateRespVO {
     private String personnelEvidenceSnapshot;
     private Boolean hasEquipmentEvidence;
     private Boolean hasPersonnelEvidence;
+
+    private Integer rawRecordCount;
+    private Integer qcRecordCount;
+    private Integer approvedQcRecordCount;
+    private Integer reviewRecordCount;
+    private Integer approvedReviewCount;
+    private Integer qcRuleCount;
+    private Integer satisfiedQcRuleCount;
+    private Integer evidenceRequirementCount;
+    private Integer missingRequirementCount;
+    private Boolean rawRecordSatisfied;
+    private Boolean qcSatisfied;
+    private Boolean equipmentEvidenceSatisfied;
+    private Boolean personnelEvidenceSatisfied;
+    private Boolean reviewSatisfied;
+    private Boolean qualityGateSatisfied;
 
 }

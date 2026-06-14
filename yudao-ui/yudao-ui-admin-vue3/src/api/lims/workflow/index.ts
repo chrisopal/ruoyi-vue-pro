@@ -230,6 +230,7 @@ export interface LimsTaskQualityGateVO {
   dataBindings?: Record<string, any>[]
   reportDraftPlan?: Record<string, any>
   qcRuleSnapshot?: Record<string, any>
+  missingRequirements?: Record<string, any>[]
   taskStatus?: string
   scheduleStatus?: string
   qcStatus?: string
@@ -243,6 +244,21 @@ export interface LimsTaskQualityGateVO {
   personnelEvidenceSnapshot?: string
   hasEquipmentEvidence?: boolean
   hasPersonnelEvidence?: boolean
+  rawRecordCount?: number
+  qcRecordCount?: number
+  approvedQcRecordCount?: number
+  reviewRecordCount?: number
+  approvedReviewCount?: number
+  qcRuleCount?: number
+  satisfiedQcRuleCount?: number
+  evidenceRequirementCount?: number
+  missingRequirementCount?: number
+  rawRecordSatisfied?: boolean
+  qcSatisfied?: boolean
+  equipmentEvidenceSatisfied?: boolean
+  personnelEvidenceSatisfied?: boolean
+  reviewSatisfied?: boolean
+  qualityGateSatisfied?: boolean
 }
 
 export const LimsWorkflowApi = {

@@ -25,7 +25,11 @@
             {{ formatReportEligible(gate?.reportEligible) }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="快照 Hash">{{ gate?.workflowSnapshotHash || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="总门禁">
+          <el-tag :type="getGateTagType(gate?.qualityGateSatisfied)">
+            {{ gate?.qualityGateSatisfied ? '已满足' : '有缺口' }}
+          </el-tag>
+        </el-descriptions-item>
       </el-descriptions>
 
       <el-alert
@@ -35,6 +39,36 @@
         :title="`阻断原因：${gate.blockReason}`"
         type="warning"
       />
+      <el-alert
+        v-if="gate?.qualityGateSatisfied"
+        :closable="false"
+        show-icon
+        title="当前任务的原始记录、QC、设备/人员证据和技术复核门禁均已满足。"
+        type="success"
+      />
+      <el-alert
+        v-else
+        :closable="false"
+        show-icon
+        :title="`当前还有 ${gate?.missingRequirementCount || 0} 个门禁缺口，需要补齐后才能稳定进入报告。`"
+        type="warning"
+      />
+
+      <div class="grid grid-cols-2 gap-12px md:grid-cols-4">
+        <div
+          v-for="metric in metricRows"
+          :key="metric.name"
+          class="rounded-4px border border-solid border-[var(--el-border-color-light)] p-12px"
+        >
+          <div class="text-12px text-[var(--el-text-color-secondary)]">{{ metric.name }}</div>
+          <div class="mt-6px text-22px font-600 leading-28px text-[var(--el-text-color-primary)]">
+            {{ metric.value }}
+          </div>
+          <el-tag class="mt-6px" :type="getGateTagType(metric.satisfied)">
+            {{ formatSatisfied(metric.satisfied) }}
+          </el-tag>
+        </div>
+      </div>
 
       <el-tabs v-model="activeTab" class="min-h-0 flex-1">
         <el-tab-pane :label="`计划要求 (${requirementTotal})`" name="requirements">
@@ -143,6 +177,18 @@
               :type="gate?.hasEquipmentEvidence ? 'success' : 'warning'"
             />
             <section>
+              <div class="mb-8px text-14px font-600">证据进度</div>
+              <el-table :data="progressRows" border size="small">
+                <el-table-column label="门禁项" min-width="120" prop="name" />
+                <el-table-column label="状态" width="100">
+                  <template #default="{ row }">
+                    <el-tag :type="getGateTagType(row.satisfied)">{{ formatSatisfied(row.satisfied) }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="当前记录" min-width="120" prop="summary" />
+              </el-table>
+            </section>
+            <section>
               <div class="mb-8px text-14px font-600">设备证据快照</div>
               <el-input :model-value="prettyJson(gate?.equipmentEvidenceSnapshot)" autosize readonly type="textarea" />
             </section>
@@ -155,6 +201,23 @@
               <el-input :model-value="prettyJson(gate?.qcRuleSnapshot)" autosize readonly type="textarea" />
             </section>
           </div>
+        </el-tab-pane>
+
+        <el-tab-pane :label="`缺口 (${gate?.missingRequirementCount || 0})`" name="missing">
+          <el-table :data="asArray(gate?.missingRequirements)" border size="small">
+            <el-table-column label="类型" min-width="140">
+              <template #default="{ row }">{{ valueOf(row, ['type']) }}</template>
+            </el-table-column>
+            <el-table-column label="编码" min-width="150">
+              <template #default="{ row }">{{ valueOf(row, ['code']) }}</template>
+            </el-table-column>
+            <el-table-column label="名称" min-width="160">
+              <template #default="{ row }">{{ valueOf(row, ['name']) }}</template>
+            </el-table-column>
+            <el-table-column label="处理提示" min-width="260" show-overflow-tooltip>
+              <template #default="{ row }">{{ valueOf(row, ['message']) }}</template>
+            </el-table-column>
+          </el-table>
         </el-tab-pane>
       </el-tabs>
     </div>
@@ -187,6 +250,61 @@ const requirementTotal = computed(
     asArray(gate.value?.evidenceRequirements).length
 )
 
+const isEvidenceSatisfied = computed(
+  () => Boolean(gate.value?.equipmentEvidenceSatisfied) && Boolean(gate.value?.personnelEvidenceSatisfied)
+)
+
+const metricRows = computed(() => [
+  {
+    name: '原始记录',
+    value: gate.value?.rawRecordCount || 0,
+    satisfied: gate.value?.rawRecordSatisfied
+  },
+  {
+    name: 'QC 规则',
+    value: `${gate.value?.satisfiedQcRuleCount || 0}/${gate.value?.qcRuleCount || 0}`,
+    satisfied: gate.value?.qcSatisfied
+  },
+  {
+    name: '证据要求',
+    value: gate.value?.evidenceRequirementCount || 0,
+    satisfied: isEvidenceSatisfied.value
+  },
+  {
+    name: '通过复核',
+    value: gate.value?.approvedReviewCount || 0,
+    satisfied: gate.value?.reviewSatisfied
+  }
+])
+
+const progressRows = computed(() => [
+  {
+    name: '原始记录',
+    satisfied: gate.value?.rawRecordSatisfied,
+    summary: `${gate.value?.rawRecordCount || 0} 条`
+  },
+  {
+    name: 'QC 规则',
+    satisfied: gate.value?.qcSatisfied,
+    summary: `${gate.value?.satisfiedQcRuleCount || 0}/${gate.value?.qcRuleCount || 0}`
+  },
+  {
+    name: '设备证据',
+    satisfied: gate.value?.equipmentEvidenceSatisfied,
+    summary: gate.value?.hasEquipmentEvidence ? '已采集' : '未采集'
+  },
+  {
+    name: '人员证据',
+    satisfied: gate.value?.personnelEvidenceSatisfied,
+    summary: gate.value?.hasPersonnelEvidence ? '已采集' : '未采集'
+  },
+  {
+    name: '技术复核',
+    satisfied: gate.value?.reviewSatisfied,
+    summary: `${gate.value?.approvedReviewCount || 0}/${gate.value?.reviewRecordCount || 0}`
+  }
+])
+
 const valueOf = (row: Record<string, any>, keys: string[]) => {
   for (const key of keys) {
     const value = row?.[key]
@@ -216,6 +334,9 @@ const formatPack = (value?: LimsTaskQualityGateVO) => {
   }
   return `${value.domainPackCode || '-'} / ${value.domainPackVersion || '-'}`
 }
+
+const formatSatisfied = (value?: boolean) => (value ? '已满足' : '待补齐')
+const getGateTagType = (value?: boolean) => (value ? 'success' : 'warning')
 
 const open = async (task: LimsTaskVO) => {
   if (!task.id) {
