@@ -2264,6 +2264,12 @@ SET @lab_review_evidence_menu_id := (SELECT `id` FROM `system_menu` WHERE `name`
 SET @lab_resource_environment_menu_id := (SELECT `id` FROM `system_menu` WHERE `name` = '资源与环境' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0' ORDER BY `id` ASC LIMIT 1);
 SET @lab_quality_improvement_menu_id := (SELECT `id` FROM `system_menu` WHERE `name` = '质量改进' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0' ORDER BY `id` ASC LIMIT 1);
 
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT 'AI 标准与解读中心', 'lims:ai-assist:query', 2, 20, @lab_config_overview_menu_id, 'ai-assist', 'ep:magic-stick', 'lims/ai-assist/index', 'LimsAiAssist', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lims:ai-assist:query' AND `deleted` = b'0'
+);
+
 UPDATE `system_menu`
 SET `parent_id` = @lab_config_overview_menu_id,
     `sort` = 10,
