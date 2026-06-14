@@ -2,6 +2,7 @@ package cn.iocoder.yudao.module.lims.controller.admin.workflow;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -91,6 +92,13 @@ public class LimsWorkflowController {
     @PreAuthorize("@ss.hasPermission('lims:request:update')")
     public CommonResult<Long> generateExecutionPlan(@RequestParam("id") Long id) {
         return success(workflowService.generateTasks(id));
+    }
+
+    @GetMapping("/lims/request/execution-plan")
+    @Operation(summary = "获得检测需求执行计划")
+    @PreAuthorize("@ss.hasPermission('lims:request:query')")
+    public CommonResult<LimsExecutionPlanRespVO> getExecutionPlan(@RequestParam("id") Long id) {
+        return success(workflowService.getExecutionPlan(id));
     }
 
     @PostMapping("/lims/request/generate-report")

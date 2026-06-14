@@ -36,6 +36,7 @@ const rowActions = [
   { label: '提交', url: '/lims/request/submit', method: 'put', permission: 'lims:request:update' },
   { label: '受理', url: '/lims/request/accept', method: 'put', permission: 'lims:request:update' },
   { label: '生成任务', url: '/lims/request/generate-tasks', method: 'post', permission: 'lims:request:update' },
+  { label: '执行计划', kind: 'executionPlan', permission: 'lims:request:query' },
   { label: '生成报告', url: '/lims/request/generate-report', method: 'post', permission: 'lims:report:create' }
 ] as const
 

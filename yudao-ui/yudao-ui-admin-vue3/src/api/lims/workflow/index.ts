@@ -196,6 +196,16 @@ export interface LimsTaskReviewVO extends LimsWorkflowVO {
   createTime?: string
 }
 
+export interface LimsExecutionPlanVO {
+  id?: number
+  requestId?: number
+  workflowSnapshotHash?: string
+  planJson?: string
+  reportDraftPlan?: string
+  status?: string
+  createTime?: string
+}
+
 export const LimsWorkflowApi = {
   page: async (baseUrl: string, params: any) => request.get({ url: baseUrl + '/page', params }),
   get: async (baseUrl: string, id: number) => request.get({ url: baseUrl + '/get', params: { id } }),
@@ -229,5 +239,7 @@ export const LimsWorkflowApi = {
   getTaskReviews: async (taskId: number) =>
     request.get<LimsTaskReviewVO[]>({ url: '/lims/task/reviews', params: { taskId } }),
   getTaskSchedulePage: async (params: LimsTaskPageReqVO) =>
-    request.get<PageResult<LimsTaskScheduleVO[]>>({ url: '/lims/task/schedule/page', params })
+    request.get<PageResult<LimsTaskScheduleVO[]>>({ url: '/lims/task/schedule/page', params }),
+  getExecutionPlan: async (requestId: number) =>
+    request.get<LimsExecutionPlanVO>({ url: '/lims/request/execution-plan', params: { id: requestId } })
 }

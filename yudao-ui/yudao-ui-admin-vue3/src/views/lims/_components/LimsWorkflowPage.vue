@@ -107,10 +107,102 @@
       <el-button @click="actionFormVisible = false">取 消</el-button>
     </template>
   </el-dialog>
+
+  <el-drawer
+    v-model="executionPlanVisible"
+    append-to-body
+    modal-class="lims-execution-plan-drawer"
+    size="820px"
+    title="执行计划与报告草稿计划"
+  >
+    <div v-loading="executionPlanLoading">
+      <el-empty v-if="!executionPlan?.id" description="尚未生成执行计划，请先生成任务或执行计划" />
+      <template v-else>
+        <el-descriptions :column="3" border>
+          <el-descriptions-item label="需求ID">{{ executionPlan.requestId }}</el-descriptions-item>
+          <el-descriptions-item label="计划状态">{{ executionPlan.status || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="快照哈希">
+            <span class="snapshot-hash">{{ executionPlan.workflowSnapshotHash || '-' }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="样品要求">{{ executionSampleRequirements.length }}</el-descriptions-item>
+          <el-descriptions-item label="任务计划">{{ executionTaskPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="结果字段">{{ executionResultFieldPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="质控规则">{{ executionQcPlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="证据要求">{{ executionEvidencePlans.length }}</el-descriptions-item>
+          <el-descriptions-item label="报告格式">{{ reportOutputFormats.join(' / ') || '-' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <el-row :gutter="16" class="mt-16px">
+          <el-col :md="12" :xs="24">
+            <div class="sub-title">ExecutionPlan</div>
+            <el-table :data="executionTaskPlans" height="260" row-key="itemCode">
+              <el-table-column label="检测项目" min-width="150" prop="itemName" />
+              <el-table-column label="方法" min-width="130" prop="methodCode" />
+              <el-table-column label="结果字段" width="100">
+                <template #default="scope">{{ arraySize(scope.row.resultFields) }}</template>
+              </el-table-column>
+              <el-table-column label="质控" width="90">
+                <template #default="scope">{{ arraySize(scope.row.qcRules) }}</template>
+              </el-table-column>
+              <el-table-column label="证据" width="90">
+                <template #default="scope">{{ arraySize(scope.row.evidenceRequirements) }}</template>
+              </el-table-column>
+            </el-table>
+          </el-col>
+          <el-col :md="12" :xs="24">
+            <div class="sub-title">ReportDraftPlan</div>
+            <el-table :data="reportSections" height="260" row-key="sectionCode">
+              <el-table-column label="章节" min-width="160" prop="sectionName" />
+              <el-table-column label="来源" min-width="140" prop="sourceType" />
+              <el-table-column label="显示" width="90">
+                <template #default="scope">
+                  <el-tag :type="scope.row.visible === false ? 'info' : 'success'">
+                    {{ scope.row.visible === false ? '隐藏' : '显示' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="16" class="mt-16px">
+          <el-col :md="12" :xs="24">
+            <div class="sub-title">样品 / 质控 / 证据</div>
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="样品要求">
+                {{ executionSampleRequirements.map((item) => item.requirementName || item.requirementCode).join(' / ') || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="质控规则">
+                {{ executionQcPlans.map((item) => item.ruleName || item.ruleCode).join(' / ') || '-' }}
+              </el-descriptions-item>
+              <el-descriptions-item label="证据要求">
+                {{ executionEvidencePlans.map((item) => item.requirementName || item.requirementCode).join(' / ') || '-' }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-col>
+          <el-col :md="12" :xs="24">
+            <div class="sub-title">报告数据绑定</div>
+            <el-table :data="reportDataBindings" height="220" row-key="fieldCode">
+              <el-table-column label="字段" min-width="150" prop="fieldName" />
+              <el-table-column label="来源路径" min-width="180" prop="sourcePath" />
+              <el-table-column label="必填" width="90">
+                <template #default="scope">
+                  <el-tag :type="scope.row.required ? 'danger' : 'info'">
+                    {{ scope.row.required ? '必填' : '可选' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-col>
+        </el-row>
+      </template>
+    </div>
+  </el-drawer>
 </template>
 
 <script lang="ts" setup>
-import { LimsWorkflowApi, LimsWorkflowVO } from '@/api/lims/workflow'
+import { LimsWorkflowApi } from '@/api/lims/workflow'
+import type { LimsExecutionPlanVO, LimsWorkflowVO } from '@/api/lims/workflow'
 
 defineOptions({ name: 'LimsWorkflowPage' })
 
@@ -118,8 +210,9 @@ interface FieldOption { label: string; value: string | number }
 interface FieldConfig { prop: string; label: string; type?: string; display?: string; span?: number; table?: boolean; hidden?: boolean; options?: readonly FieldOption[] }
 interface ActionConfig {
   label: string
-  url: string
+  url?: string
   method?: 'post' | 'put'
+  kind?: 'executionPlan'
   permission?: string | readonly string[]
   fields?: readonly FieldConfig[]
   formTitle?: string
@@ -156,6 +249,9 @@ const actionFormVisible = ref(false)
 const actionFormLoading = ref(false)
 const actionFormConfig = ref<ActionConfig>()
 const actionFormData = ref<LimsWorkflowVO>({})
+const executionPlanVisible = ref(false)
+const executionPlanLoading = ref(false)
+const executionPlan = ref<LimsExecutionPlanVO>()
 
 const title = computed(() => props.title)
 const subtitle = computed(() => props.subtitle)
@@ -167,6 +263,16 @@ const rowActions = computed(() => props.rowActions || [])
 const actionFormTitle = computed(() => actionFormConfig.value?.formTitle || actionFormConfig.value?.label || '操作')
 const actionFormFields = computed(() => actionFormConfig.value?.fields || [])
 const visibleFields = computed(() => props.fields.filter((field) => field.table !== false && field.prop !== props.noField && field.prop !== props.nameField && field.prop !== 'status').slice(0, 6))
+const executionPlanJson = computed(() => parseJsonObject(executionPlan.value?.planJson))
+const reportDraftPlanJson = computed(() => parseJsonObject(executionPlan.value?.reportDraftPlan || executionPlanJson.value.reportDraftPlan))
+const executionSampleRequirements = computed(() => toArray(executionPlanJson.value.sampleRequirements))
+const executionTaskPlans = computed(() => toArray(executionPlanJson.value.taskPlans))
+const executionResultFieldPlans = computed(() => toArray(executionPlanJson.value.resultFieldPlans))
+const executionQcPlans = computed(() => toArray(executionPlanJson.value.qcCheckPlans))
+const executionEvidencePlans = computed(() => toArray(executionPlanJson.value.evidenceRequirementPlans))
+const reportOutputFormats = computed(() => toArray(reportDraftPlanJson.value.outputFormats).map((item) => String(item)))
+const reportSections = computed(() => toArray(reportDraftPlanJson.value.sections))
+const reportDataBindings = computed(() => toArray(reportDraftPlanJson.value.dataBindings))
 const formFields = computed(() => {
   const core: FieldConfig[] = [{ prop: props.noField, label: props.noLabel }, { prop: props.nameField, label: props.nameLabel }]
   const merged = [...core, ...props.fields, { prop: 'status', label: '状态' }]
@@ -233,16 +339,31 @@ const handleDelete = async (id: number) => {
 }
 const runAction = async (action: ActionConfig, row: LimsWorkflowVO) => {
   if (!row.id) return
+  if (action.kind === 'executionPlan') {
+    await openExecutionPlan(row.id)
+    return
+  }
   if (action.fields?.length) {
     actionFormConfig.value = action
     actionFormData.value = resolveActionDefaults(action, row)
     actionFormVisible.value = true
     return
   }
+  if (!action.url) return
   if (action.method === 'post') await LimsWorkflowApi.postAction(action.url, row.id)
   else await LimsWorkflowApi.putAction(action.url, row.id)
   message.success('操作成功')
   await getList()
+}
+const openExecutionPlan = async (requestId: number) => {
+  executionPlanVisible.value = true
+  executionPlanLoading.value = true
+  executionPlan.value = undefined
+  try {
+    executionPlan.value = await LimsWorkflowApi.getExecutionPlan(requestId)
+  } finally {
+    executionPlanLoading.value = false
+  }
 }
 const resolveActionDefaults = (action: ActionConfig, row: LimsWorkflowVO) => {
   if (typeof action.defaults === 'function') return action.defaults(row)
@@ -270,6 +391,44 @@ const parseReportOutputs = (value: unknown): ReportOutput[] => {
     return []
   }
 }
+const parseJsonObject = (value: unknown): Record<string, any> => {
+  if (!value) return {}
+  if (typeof value === 'object') return value as Record<string, any>
+  try {
+    const parsed = JSON.parse(String(value))
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+const toArray = (value: unknown): any[] => Array.isArray(value) ? value : []
+const arraySize = (value: unknown) => toArray(value).length
 
 onMounted(() => getList())
 </script>
+
+<style scoped>
+.snapshot-hash {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.sub-title {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+:global(.lims-execution-plan-drawer) {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+}
+
+:global(.lims-execution-plan-drawer .el-drawer.rtl) {
+  right: 0 !important;
+}
+</style>

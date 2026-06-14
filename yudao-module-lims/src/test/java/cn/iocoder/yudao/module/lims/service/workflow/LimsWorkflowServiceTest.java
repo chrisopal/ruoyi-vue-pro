@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -337,6 +338,40 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
 
         assertEquals(1, page.getList().size());
         assertEquals("FOOD", page.getList().get(0).getDomainCode());
+    }
+
+    @Test
+    void getExecutionPlan_shouldExposePersistedPlanAndReportDraftPlan() {
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+        LimsExecutionPlanDO plan = new LimsExecutionPlanDO();
+        plan.setId(300L);
+        plan.setRequestId(1L);
+        plan.setWorkflowSnapshotHash("snapshot-hash-001");
+        plan.setStatus("generated");
+        plan.setPlanJson("""
+                {
+                  "taskPlans": [{"itemCode": "PH", "itemName": "pH"}],
+                  "sampleRequirements": [{"requirementCode": "SAMPLE_QTY"}],
+                  "qcCheckPlans": [{"ruleCode": "BLANK"}],
+                  "evidenceRequirementPlans": [{"requirementCode": "EQUIPMENT_CERT"}],
+                  "reportDraftPlan": {
+                    "templateVersion": "1.0",
+                    "outputFormats": ["WORD", "PDF", "EXCEL"],
+                    "sections": [{"sectionCode": "RESULTS"}]
+                  }
+                }
+                """);
+        when(executionPlanMapper.selectByRequestId(1L)).thenReturn(plan);
+
+        LimsExecutionPlanRespVO response = workflowService.getExecutionPlan(1L);
+
+        assertEquals(300L, response.getId());
+        assertEquals(1L, response.getRequestId());
+        assertEquals("snapshot-hash-001", response.getWorkflowSnapshotHash());
+        assertEquals("generated", response.getStatus());
+        assertEquals(plan.getPlanJson(), response.getPlanJson());
+        assertEquals("""
+                {"templateVersion":"1.0","outputFormats":["WORD","PDF","EXCEL"],"sections":[{"sectionCode":"RESULTS"}]}""".trim(), response.getReportDraftPlan());
     }
 
     @Test

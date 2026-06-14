@@ -3,6 +3,7 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
+import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsExecutionPlanRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPageReqVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
@@ -154,6 +155,17 @@ public class LimsWorkflowService {
 
     public PageResult<LimsWorkflowRespVO> getRequestPage(LimsWorkflowPageReqVO pageReqVO) {
         return BeanUtils.toBean(requestMapper.selectPage(pageReqVO), LimsWorkflowRespVO.class);
+    }
+
+    public LimsExecutionPlanRespVO getExecutionPlan(Long requestId) {
+        validateRequestExists(requestId);
+        LimsExecutionPlanDO executionPlan = executionPlanMapper.selectByRequestId(requestId);
+        if (executionPlan == null) {
+            return null;
+        }
+        LimsExecutionPlanRespVO respVO = BeanUtils.toBean(executionPlan, LimsExecutionPlanRespVO.class);
+        respVO.setReportDraftPlan(extractReportDraftPlan(executionPlan.getPlanJson()));
+        return respVO;
     }
 
     public void updateRequestStatus(Long id, String status) {
@@ -451,6 +463,11 @@ public class LimsWorkflowService {
             executionPlan.setId(existing.getId());
             executionPlanMapper.updateById(executionPlan);
         }
+    }
+
+    private String extractReportDraftPlan(String planJson) {
+        JsonNode reportDraftPlan = readObject(planJson).path("reportDraftPlan");
+        return reportDraftPlan.isMissingNode() ? "{}" : reportDraftPlan.toString();
     }
 
     public Long generateReport(Long requestId) {
