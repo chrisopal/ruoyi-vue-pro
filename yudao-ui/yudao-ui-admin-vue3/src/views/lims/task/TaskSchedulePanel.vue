@@ -25,8 +25,39 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="设备">
-              <el-input-number v-model="formData.equipmentId" :min="1" class="!w-full" controls-position="right" />
+              <el-select
+                v-model="formData.equipmentId"
+                class="!w-full"
+                clearable
+                filterable
+                :loading="equipmentLoading"
+                placeholder="选择可用设备"
+                @visible-change="(open) => open && loadEquipmentOptions()"
+                @change="handleEquipmentChange"
+              >
+                <el-option
+                  v-for="item in equipmentOptions"
+                  :key="item.id"
+                  :label="equipmentLabel(item)"
+                  :value="item.id!"
+                >
+                  <div class="flex items-center justify-between gap-12px">
+                    <span>{{ item.equipmentCode }} / {{ item.equipmentName }}</span>
+                    <span class="text-12px text-[var(--el-text-color-secondary)]">
+                      {{ item.calibrationValidUntil || '未维护有效期' }}
+                    </span>
+                  </div>
+                </el-option>
+              </el-select>
             </el-form-item>
+          </el-col>
+          <el-col v-if="selectedEquipment" :span="24">
+            <el-alert
+              :closable="false"
+              show-icon
+              type="success"
+              :title="selectedEquipmentSummary"
+            />
           </el-col>
           <el-col :span="12">
             <el-form-item label="计划开始">
@@ -107,7 +138,7 @@
             <template #default="{ row }">{{ row.assignedUserId || '-' }}</template>
           </el-table-column>
           <el-table-column label="设备" min-width="100">
-            <template #default="{ row }">{{ row.equipmentId || '-' }}</template>
+            <template #default="{ row }">{{ scheduleEquipmentLabel(row.equipmentId) }}</template>
           </el-table-column>
           <el-table-column label="锁定" min-width="80">
             <template #default="{ row }">
@@ -131,6 +162,7 @@
 
 <script lang="ts" setup>
 import dayjs from 'dayjs'
+import { LabEquipmentAssetApi, type LabEquipmentAssetVO } from '@/api/lab/equipment-asset'
 import {
   LimsWorkflowApi,
   type LimsTaskPageReqVO,
@@ -159,6 +191,8 @@ const submitting = ref(false)
 const preferredMode = ref<'schedule' | 'default'>('schedule')
 const taskDetail = ref<LimsTaskVO>()
 const scheduleList = ref<LimsTaskScheduleVO[]>([])
+const equipmentLoading = ref(false)
+const equipmentOptions = ref<LabEquipmentAssetVO[]>([])
 const formData = reactive<LimsTaskSchedulePayload>({
   taskId: undefined,
   assignedUserId: undefined,
@@ -171,6 +205,17 @@ const formData = reactive<LimsTaskSchedulePayload>({
 const drawerTitle = computed(() =>
   preferredMode.value === 'default' ? '任务默认排程' : '任务排程'
 )
+const selectedEquipment = computed(() =>
+  equipmentOptions.value.find((item) => item.id === formData.equipmentId)
+)
+const selectedEquipmentSummary = computed(() => {
+  const equipment = selectedEquipment.value
+  if (!equipment) {
+    return ''
+  }
+  const iot = equipment.iotEnabled ? `IoT:${equipment.iotDeviceId || equipment.iotProductId || '已启用'}` : '未启用IoT'
+  return `已选择 ${equipment.equipmentCode} / ${equipment.equipmentName}，校准有效期 ${equipment.calibrationValidUntil || '未维护'}，${iot}`
+})
 
 watch(
   () => [formData.plannedStartTime, formData.durationMinutes] as const,
@@ -191,6 +236,8 @@ const fillForm = (task: LimsTaskVO) => {
   formData.taskId = task.id
   formData.assignedUserId = task.assignedUserId
   formData.equipmentId = task.equipmentId
+  formData.equipmentCode = task.equipmentCode
+  formData.equipmentName = task.equipmentName
   formData.plannedStartTime = task.plannedStartTime || ''
   formData.plannedEndTime = task.plannedEndTime || ''
   formData.durationMinutes = task.durationMinutes || 60
@@ -199,6 +246,51 @@ const fillForm = (task: LimsTaskVO) => {
 const loadTask = async (taskId: number) => {
   taskDetail.value = await LimsWorkflowApi.getTask(taskId)
   fillForm(taskDetail.value)
+}
+
+const equipmentLabel = (equipment: LabEquipmentAssetVO) =>
+  `${equipment.equipmentCode} / ${equipment.equipmentName}`
+
+const scheduleEquipmentLabel = (equipmentId?: number) => {
+  if (!equipmentId) {
+    return '-'
+  }
+  const equipment = equipmentOptions.value.find((item) => item.id === equipmentId)
+  return equipment ? equipmentLabel(equipment) : `#${equipmentId}`
+}
+
+const loadEquipmentOptions = async () => {
+  equipmentLoading.value = true
+  try {
+    const list = await LabEquipmentAssetApi.getAvailableEquipment({
+      domainCode: taskDetail.value?.domainCode,
+      testItem: taskDetail.value?.testItem
+    })
+    equipmentOptions.value = normalizeEquipmentOptions(list || [])
+  } finally {
+    equipmentLoading.value = false
+  }
+}
+
+const normalizeEquipmentOptions = (list: LabEquipmentAssetVO[]) => {
+  if (!taskDetail.value?.equipmentId || list.some((item) => item.id === taskDetail.value?.equipmentId)) {
+    return list
+  }
+  return [
+    {
+      id: taskDetail.value.equipmentId,
+      equipmentCode: taskDetail.value.equipmentCode || `#${taskDetail.value.equipmentId}`,
+      equipmentName: taskDetail.value.equipmentName || '当前绑定设备',
+      status: 'enabled'
+    },
+    ...list
+  ]
+}
+
+const handleEquipmentChange = (equipmentId?: number) => {
+  const equipment = equipmentOptions.value.find((item) => item.id === equipmentId)
+  formData.equipmentCode = equipment?.equipmentCode
+  formData.equipmentName = equipment?.equipmentName
 }
 
 const loadSchedules = async () => {
@@ -270,6 +362,7 @@ const open = async (task: LimsTaskVO, mode: 'schedule' | 'default' = 'schedule')
   loading.value = true
   try {
     await loadTask(task.id!)
+    await loadEquipmentOptions()
     await loadSchedules()
   } finally {
     loading.value = false

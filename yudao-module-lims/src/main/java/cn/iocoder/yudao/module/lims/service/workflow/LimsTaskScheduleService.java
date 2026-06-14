@@ -7,6 +7,11 @@ import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTaskScheduleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTaskScheduleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestTaskMapper;
+import cn.iocoder.yudao.module.lims.service.workflow.gateway.EquipmentGateway;
+import cn.iocoder.yudao.module.lims.service.workflow.model.AvailableEquipment;
+import cn.iocoder.yudao.module.lims.service.workflow.model.CalibrationEvidence;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static cn.iocoder.yudao.framework.common.exception.util.ServiceExceptionUtil.exception;
+import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_EQUIPMENT_UNAVAILABLE;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_NOT_EXISTS;
 import static cn.iocoder.yudao.module.lims.enums.ErrorCodeConstants.TEST_TASK_SCHEDULE_CONFLICT;
 
@@ -31,6 +37,10 @@ public class LimsTaskScheduleService {
     private LimsTaskScheduleMapper scheduleMapper;
     @Resource
     private LimsTaskLifecycleService lifecycleService;
+    @Resource
+    private EquipmentGateway equipmentGateway;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional(rollbackFor = Exception.class)
     public Long schedule(LimsWorkflowSaveReqVO reqVO) {
@@ -50,7 +60,7 @@ public class LimsTaskScheduleService {
         scheduleMapper.insert(schedule);
 
         String fromStatus = currentStatus(task);
-        task.setEquipmentId(command.equipmentId());
+        bindEquipment(task, command.equipmentId());
         task.setAssignedUserId(command.assignedUserId());
         task.setPlannedStartTime(command.plannedStartTime());
         task.setPlannedEndTime(command.plannedEndTime());
@@ -100,6 +110,22 @@ public class LimsTaskScheduleService {
         return new ScheduleCommand(task.getId(), equipmentId, assignedUserId, plannedStartTime, plannedEndTime, Math.max(durationMinutes, 1L));
     }
 
+    private void bindEquipment(LimsTestTaskDO task, Long equipmentId) {
+        if (equipmentId == null) {
+            return;
+        }
+        AvailableEquipment selected = equipmentGateway.getAvailableEquipment(null, task.getTestItem()).stream()
+                .filter(equipment -> equipmentId.equals(equipment.equipmentId()))
+                .findFirst()
+                .orElseThrow(() -> exception(TEST_TASK_EQUIPMENT_UNAVAILABLE));
+        List<CalibrationEvidence> evidence = equipmentGateway.getCurrentCalibrationEvidence(selected.equipmentId());
+        task.setEquipmentId(selected.equipmentId());
+        task.setEquipmentCode(selected.equipmentCode());
+        task.setEquipmentName(selected.equipmentName());
+        task.setEquipmentSnapshot(writeJson(selected));
+        task.setEquipmentEvidenceSnapshot(writeJson(evidence));
+    }
+
     private void assertNoConflicts(ScheduleCommand command) {
         if (command.equipmentId() != null && hasOverlap(scheduleMapper.selectActiveByEquipmentId(command.equipmentId()), command)) {
             throw exception(TEST_TASK_SCHEDULE_CONFLICT);
@@ -135,6 +161,14 @@ public class LimsTaskScheduleService {
 
     private String currentStatus(LimsTestTaskDO task) {
         return StringUtils.hasText(task.getTaskStatus()) ? task.getTaskStatus() : task.getStatus();
+    }
+
+    private String writeJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException("Unable to serialize LIMS equipment snapshot", ex);
+        }
     }
 
     private record ScheduleCommand(Long taskId, Long equipmentId, Long assignedUserId,

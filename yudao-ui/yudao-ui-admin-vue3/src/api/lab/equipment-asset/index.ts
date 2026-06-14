@@ -44,6 +44,6 @@ export const LabEquipmentAssetApi = {
   },
 
   getAvailableEquipment: async (params: { domainCode?: string; testItem?: string }) => {
-    return await request.get({ url: '/lab/equipment-asset/available', params })
+    return await request.get<LabEquipmentAssetVO[]>({ url: '/lab/equipment-asset/available', params })
   }
 }
