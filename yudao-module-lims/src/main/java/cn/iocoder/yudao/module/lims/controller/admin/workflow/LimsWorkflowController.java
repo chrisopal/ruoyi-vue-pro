@@ -84,6 +84,13 @@ public class LimsWorkflowController {
         return success(workflowService.generateTasks(id));
     }
 
+    @PostMapping("/lims/request/generate-execution-plan")
+    @Operation(summary = "生成执行计划、样品要求和检测任务")
+    @PreAuthorize("@ss.hasPermission('lims:request:update')")
+    public CommonResult<Long> generateExecutionPlan(@RequestParam("id") Long id) {
+        return success(workflowService.generateTasks(id));
+    }
+
     @PostMapping("/lims/request/generate-report")
     @Operation(summary = "生成检测报告")
     @PreAuthorize("@ss.hasPermission('lims:report:create')")

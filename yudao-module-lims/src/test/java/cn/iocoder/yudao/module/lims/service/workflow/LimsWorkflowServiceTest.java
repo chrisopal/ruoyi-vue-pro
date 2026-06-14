@@ -3,8 +3,11 @@ package cn.iocoder.yudao.module.lims.service.workflow;
 import cn.iocoder.yudao.framework.test.core.ut.BaseMockitoUnitTest;
 import cn.iocoder.yudao.module.lab.service.domainpack.dto.LabDomainPackSnapshotDTO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.resultvalue.LimsTestResultValueMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsExecutionPlanMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsReportMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsSampleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
@@ -19,7 +22,9 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,9 +47,15 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     @Mock
     private LimsReportMapper reportMapper;
     @Mock
+    private LimsExecutionPlanMapper executionPlanMapper;
+    @Mock
     private DomainPackGateway domainPackGateway;
     @Mock
     private WorkflowSnapshotFactory workflowSnapshotFactory;
+    @Spy
+    private ReportDraftPlanFactory reportDraftPlanFactory = new ReportDraftPlanFactory(new ObjectMapper());
+    @Spy
+    private ExecutionPlanFactory executionPlanFactory = new ExecutionPlanFactory(new ObjectMapper(), reportDraftPlanFactory);
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,6 +85,24 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                         && "INTERNAL_DEPARTMENT".equals(request.getRequestSourceType())));
     }
 
+    @Test
+    void generateTasks_shouldPersistExecutionPlanWithSampleQcEvidenceAndReportDraft() {
+        LimsTestRequestDO request = requestWithWorkflowSnapshot(snapshotWithAllSections());
+        when(requestMapper.selectById(1L)).thenReturn(request);
+        when(sampleMapper.selectListByRequestId(1L)).thenReturn(List.of(sample()));
+
+        Long created = workflowService.generateTasks(1L);
+
+        assertEquals(1L, created);
+        verify(executionPlanMapper).insert(argThat((LimsExecutionPlanDO plan) ->
+                Long.valueOf(1L).equals(plan.getRequestId())
+                        && "snapshot-hash-001".equals(plan.getWorkflowSnapshotHash())
+                        && plan.getPlanJson().contains("sampleRequirements")
+                        && plan.getPlanJson().contains("qcCheckPlans")
+                        && plan.getPlanJson().contains("evidenceRequirementPlans")
+                        && plan.getPlanJson().contains("reportDraftPlan")));
+    }
+
     private static LimsWorkflowSaveReqVO createReq() {
         LimsWorkflowSaveReqVO reqVO = new LimsWorkflowSaveReqVO();
         reqVO.setRequestNo("REQ-2026-001");
@@ -93,6 +122,55 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         pack.setPackVersion("1.0");
         pack.setIndustry("食品");
         return pack;
+    }
+
+    private static LimsTestRequestDO requestWithWorkflowSnapshot(String snapshotJson) {
+        LimsTestRequestDO request = new LimsTestRequestDO();
+        request.setId(1L);
+        request.setRequestNo("REQ-2026-001");
+        request.setRequestName("食品委托检测");
+        request.setDomainCode("FOOD");
+        request.setWorkflowSnapshot(snapshotJson);
+        request.setWorkflowSnapshotHash("snapshot-hash-001");
+        return request;
+    }
+
+    private static LimsSampleDO sample() {
+        LimsSampleDO sample = new LimsSampleDO();
+        sample.setId(10L);
+        sample.setRequestId(1L);
+        sample.setRequestNo("REQ-2026-001");
+        sample.setSampleNo("REQ-2026-001-S01");
+        sample.setSampleName("食品样品");
+        return sample;
+    }
+
+    private static String snapshotWithAllSections() {
+        return """
+                {
+                  "domainPackId": 1,
+                  "packCode": "FOOD_ROUTINE",
+                  "packVersion": "1.0",
+                  "sampleRequirements": [
+                    {"requirementCode": "SAMPLE_QTY", "requirementName": "样品量", "requirementText": ">= 500g"}
+                  ],
+                  "testItems": [
+                    {"itemCode": "PH", "itemName": "pH", "methodCode": "GB6920", "methodName": "玻璃电极法"}
+                  ],
+                  "resultFields": [
+                    {"itemCode": "PH", "fieldCode": "PH_VALUE", "fieldName": "pH值", "fieldType": "number"}
+                  ],
+                  "qcRules": [
+                    {"ruleCode": "BLANK", "ruleName": "空白样", "acceptanceCriteria": "每批至少 1 个"}
+                  ],
+                  "reportSections": [
+                    {"sectionCode": "RESULTS", "sectionName": "检测结果", "sourceType": "result_values"}
+                  ],
+                  "evidenceRequirements": [
+                    {"requirementCode": "EQUIPMENT_CERT", "requirementName": "设备校准证书", "evidenceType": "EQUIPMENT_CERTIFICATE"}
+                  ]
+                }
+                """;
     }
 
 }

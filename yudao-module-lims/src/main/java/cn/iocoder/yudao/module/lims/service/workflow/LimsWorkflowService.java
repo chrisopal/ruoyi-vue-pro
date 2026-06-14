@@ -7,12 +7,14 @@ import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowPag
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowRespVO;
 import cn.iocoder.yudao.module.lims.controller.admin.workflow.vo.LimsWorkflowSaveReqVO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.resultvalue.LimsTestResultValueDO;
+import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsExecutionPlanDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsReportDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsSampleDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestRequestDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestResultDO;
 import cn.iocoder.yudao.module.lims.dal.dataobject.workflow.LimsTestTaskDO;
 import cn.iocoder.yudao.module.lims.dal.mysql.resultvalue.LimsTestResultValueMapper;
+import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsExecutionPlanMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsReportMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsSampleMapper;
 import cn.iocoder.yudao.module.lims.dal.mysql.workflow.LimsTestRequestMapper;
@@ -63,9 +65,13 @@ public class LimsWorkflowService {
     @Resource
     private LimsReportMapper reportMapper;
     @Resource
+    private LimsExecutionPlanMapper executionPlanMapper;
+    @Resource
     private DomainPackGateway domainPackGateway;
     @Resource
     private WorkflowSnapshotFactory workflowSnapshotFactory;
+    @Resource
+    private ExecutionPlanFactory executionPlanFactory;
     @Resource
     private ObjectMapper objectMapper;
 
@@ -265,6 +271,7 @@ public class LimsWorkflowService {
 
     public Long generateTasks(Long requestId) {
         LimsTestRequestDO request = validateRequestExists(requestId);
+        persistExecutionPlan(request);
         List<LimsSampleDO> samples = sampleMapper.selectListByRequestId(requestId);
         if (samples.isEmpty()) {
             samples = List.of(createDefaultSample(request));
@@ -291,6 +298,22 @@ public class LimsWorkflowService {
         }
         requestMapper.update(null, new UpdateWrapper<LimsTestRequestDO>().eq("id", requestId).set("status", "task_generated"));
         return (long) created;
+    }
+
+    private void persistExecutionPlan(LimsTestRequestDO request) {
+        String planJson = executionPlanFactory.createPlanJson(resolveWorkflowSnapshot(request));
+        LimsExecutionPlanDO existing = executionPlanMapper.selectByRequestId(request.getId());
+        LimsExecutionPlanDO executionPlan = new LimsExecutionPlanDO();
+        executionPlan.setRequestId(request.getId());
+        executionPlan.setWorkflowSnapshotHash(request.getWorkflowSnapshotHash());
+        executionPlan.setPlanJson(planJson);
+        executionPlan.setStatus("generated");
+        if (existing == null) {
+            executionPlanMapper.insert(executionPlan);
+        } else {
+            executionPlan.setId(existing.getId());
+            executionPlanMapper.updateById(executionPlan);
+        }
     }
 
     public Long generateReport(Long requestId) {
