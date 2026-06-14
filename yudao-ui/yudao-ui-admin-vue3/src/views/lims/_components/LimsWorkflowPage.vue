@@ -40,7 +40,19 @@
         <template #default="scope">
           <div v-if="field.display === 'reportOutput'" class="flex flex-wrap justify-center gap-4px">
             <el-tag v-for="output in parseReportOutputs(scope.row[field.prop])" :key="output.fileUrl || output.format" size="small">
-              {{ output.format }}
+              <el-link
+                v-if="output.fileUrl"
+                :href="output.fileUrl"
+                underline="never"
+                target="_blank"
+                type="primary"
+              >
+                {{ output.format }}
+              </el-link>
+              <span v-else>{{ output.format }}</span>
+              <span v-if="output.contentHash" class="ml-4px text-10px opacity-70">
+                #{{ shortHash(output.contentHash) }}
+              </span>
             </el-tag>
             <span v-if="parseReportOutputs(scope.row[field.prop]).length === 0">-</span>
           </div>
@@ -218,7 +230,7 @@ interface ActionConfig {
   formTitle?: string
   defaults?: LimsWorkflowVO | ((row: LimsWorkflowVO) => LimsWorkflowVO)
 }
-interface ReportOutput { format?: string; fileUrl?: string }
+interface ReportOutput { format?: string; fileUrl?: string; contentHash?: string }
 
 const props = defineProps<{
   title: string
@@ -395,6 +407,7 @@ const parseReportOutputs = (value: unknown): ReportOutput[] => {
     return []
   }
 }
+const shortHash = (hash: string) => (hash.length > 10 ? hash.slice(0, 10) : hash)
 const parseJsonObject = (value: unknown): Record<string, any> => {
   if (!value) return {}
   if (typeof value === 'object') return value as Record<string, any>
