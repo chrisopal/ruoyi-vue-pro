@@ -5,7 +5,21 @@ import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.lab.controller.admin.domainpack.vo.LabDomainPackPageReqVO;
 import cn.iocoder.yudao.module.lab.controller.admin.domainpack.vo.LabDomainPackSaveReqVO;
 import cn.iocoder.yudao.module.lab.dal.dataobject.domainpack.LabDomainPackDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackEvidenceRequirementDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackQcRuleDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackReportSectionDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackResultFieldDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackSampleRequirementDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackTestItemDO;
+import cn.iocoder.yudao.module.lab.dal.dataobject.packconfig.LabPackWorkflowNodeDO;
 import cn.iocoder.yudao.module.lab.dal.mysql.domainpack.LabDomainPackMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackEvidenceRequirementMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackQcRuleMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackReportSectionMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackResultFieldMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackSampleRequirementMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackTestItemMapper;
+import cn.iocoder.yudao.module.lab.dal.mysql.packconfig.LabPackWorkflowNodeMapper;
 import cn.iocoder.yudao.module.lab.service.domain.LabDomainProfileService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -28,6 +42,20 @@ public class LabDomainPackServiceImpl implements LabDomainPackService {
     private LabDomainPackMapper domainPackMapper;
     @Resource
     private LabDomainProfileService domainProfileService;
+    @Resource
+    private LabPackWorkflowNodeMapper workflowNodeMapper;
+    @Resource
+    private LabPackSampleRequirementMapper sampleRequirementMapper;
+    @Resource
+    private LabPackTestItemMapper testItemMapper;
+    @Resource
+    private LabPackResultFieldMapper resultFieldMapper;
+    @Resource
+    private LabPackQcRuleMapper qcRuleMapper;
+    @Resource
+    private LabPackReportSectionMapper reportSectionMapper;
+    @Resource
+    private LabPackEvidenceRequirementMapper evidenceRequirementMapper;
 
     @Override
     public Long createDomainPack(LabDomainPackSaveReqVO createReqVO) {
@@ -79,6 +107,7 @@ public class LabDomainPackServiceImpl implements LabDomainPackService {
         target.setPackVersion(targetVersion);
         target.setStatus(STATUS_DRAFT);
         domainPackMapper.insert(target);
+        copyPackConfiguration(source.getId(), target.getId());
         return target.getId();
     }
 
@@ -140,6 +169,51 @@ public class LabDomainPackServiceImpl implements LabDomainPackService {
                 || STATUS_ARCHIVED.equalsIgnoreCase(domainPack.getStatus())) {
             throw exception(DOMAIN_PACK_PUBLISHED_IMMUTABLE);
         }
+    }
+
+    private void copyPackConfiguration(Long sourcePackId, Long targetPackId) {
+        workflowNodeMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackWorkflowNodeDO target = BeanUtils.toBean(source, LabPackWorkflowNodeDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            workflowNodeMapper.insert(target);
+        });
+        sampleRequirementMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackSampleRequirementDO target = BeanUtils.toBean(source, LabPackSampleRequirementDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            sampleRequirementMapper.insert(target);
+        });
+        testItemMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackTestItemDO target = BeanUtils.toBean(source, LabPackTestItemDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            testItemMapper.insert(target);
+        });
+        resultFieldMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackResultFieldDO target = BeanUtils.toBean(source, LabPackResultFieldDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            resultFieldMapper.insert(target);
+        });
+        qcRuleMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackQcRuleDO target = BeanUtils.toBean(source, LabPackQcRuleDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            qcRuleMapper.insert(target);
+        });
+        reportSectionMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackReportSectionDO target = BeanUtils.toBean(source, LabPackReportSectionDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            reportSectionMapper.insert(target);
+        });
+        evidenceRequirementMapper.selectListByDomainPackId(sourcePackId).forEach(source -> {
+            LabPackEvidenceRequirementDO target = BeanUtils.toBean(source, LabPackEvidenceRequirementDO.class);
+            target.setId(null);
+            target.setDomainPackId(targetPackId);
+            evidenceRequirementMapper.insert(target);
+        });
     }
 
 }

@@ -22,8 +22,14 @@ public class ExecutionPlanFactory {
     public String createPlanJson(String workflowSnapshotJson) {
         JsonNode snapshot = readObject(workflowSnapshotJson);
         ObjectNode plan = objectMapper.createObjectNode();
+        plan.put("domainPackId", snapshot.path("domainPackId").asLong());
+        plan.put("packCode", snapshot.path("packCode").asText(""));
+        plan.put("packVersion", snapshot.path("packVersion").asText(""));
+        plan.put("workflowSnapshotHash", snapshot.path("workflowSnapshotHash").asText(""));
+        plan.put("frozenAt", snapshot.path("frozenAt").asText(""));
+        plan.set("workflowNodes", copyArray(snapshot.path("workflowNodes")));
         plan.set("sampleRequirements", copyArray(snapshot.path("sampleRequirements")));
-        plan.set("taskPlans", createTaskPlans(snapshot.path("testItems")));
+        plan.set("taskPlans", createTaskPlans(snapshot));
         plan.set("resultFieldPlans", copyArray(snapshot.path("resultFields")));
         plan.set("qcCheckPlans", copyArray(snapshot.path("qcRules")));
         plan.set("evidenceRequirementPlans", copyArray(snapshot.path("evidenceRequirements")));
@@ -31,27 +37,48 @@ public class ExecutionPlanFactory {
         return plan.toString();
     }
 
-    private ArrayNode createTaskPlans(JsonNode testItems) {
+    private ArrayNode createTaskPlans(JsonNode snapshot) {
+        JsonNode testItems = snapshot.path("testItems");
         ArrayNode tasks = objectMapper.createArrayNode();
         if (!testItems.isArray()) {
             return tasks;
         }
         for (JsonNode item : testItems) {
             ObjectNode task = tasks.addObject();
-            task.put("itemCode", item.path("itemCode").asText(""));
+            String itemCode = item.path("itemCode").asText("");
+            task.put("itemCode", itemCode);
             task.put("itemName", item.path("itemName").asText(item.path("name").asText("常规检测")));
             task.put("methodCode", item.path("methodCode").asText("METHOD"));
             task.put("methodName", item.path("methodName").asText("配置方法"));
             task.put("standardCode", item.path("standardCode").asText(""));
+            task.set("resultFields", filterByItemCode(snapshot.path("resultFields"), itemCode));
+            task.set("qcRules", filterByItemCode(snapshot.path("qcRules"), itemCode));
+            task.set("evidenceRequirements", filterByItemCode(snapshot.path("evidenceRequirements"), itemCode));
+            task.set("reportSections", copyArray(snapshot.path("reportSections")));
+            task.set("sampleRequirements", copyArray(snapshot.path("sampleRequirements")));
             task.put("status", "planned");
         }
         return tasks;
     }
 
+    private ArrayNode filterByItemCode(JsonNode node, String itemCode) {
+        ArrayNode array = objectMapper.createArrayNode();
+        if (node == null || !node.isArray()) {
+            return array;
+        }
+        for (JsonNode item : node) {
+            String configuredItemCode = item.path("itemCode").asText("");
+            if (!StringUtils.hasText(configuredItemCode) || !StringUtils.hasText(itemCode) || itemCode.equals(configuredItemCode)) {
+                array.add(item.deepCopy());
+            }
+        }
+        return array;
+    }
+
     private ArrayNode copyArray(JsonNode node) {
         ArrayNode array = objectMapper.createArrayNode();
         if (node != null && node.isArray()) {
-            node.forEach(array::add);
+            node.forEach(item -> array.add(item.deepCopy()));
         }
         return array;
     }

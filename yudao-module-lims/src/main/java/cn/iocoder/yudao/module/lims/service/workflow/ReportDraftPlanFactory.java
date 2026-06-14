@@ -18,10 +18,15 @@ public class ReportDraftPlanFactory {
     public ObjectNode createReportDraftPlan(JsonNode workflowSnapshot) {
         JsonNode templateSchema = workflowSnapshot.path("template");
         ObjectNode plan = objectMapper.createObjectNode();
+        plan.put("domainPackId", workflowSnapshot.path("domainPackId").asLong());
+        plan.put("packCode", workflowSnapshot.path("packCode").asText(""));
         plan.putNull("templateId");
         plan.put("templateVersion", workflowSnapshot.path("packVersion").asText(""));
         plan.set("templateCodes", copyArray(templateSchema.path("templates")));
         plan.set("outputFormats", createOutputFormats(templateSchema));
+        plan.set("sampleRequirements", copyArray(workflowSnapshot.path("sampleRequirements")));
+        plan.set("resultFieldRules", copyArray(workflowSnapshot.path("resultFields")));
+        plan.set("qcRules", copyArray(workflowSnapshot.path("qcRules")));
         plan.set("sections", copyArray(workflowSnapshot.path("reportSections")));
         plan.set("sectionRules", copyArray(templateSchema.path("reportSections")));
         plan.set("dataBindings", createDataBindings(workflowSnapshot.path("resultFields")));
@@ -60,7 +65,7 @@ public class ReportDraftPlanFactory {
     private ArrayNode copyArray(JsonNode node) {
         ArrayNode array = objectMapper.createArrayNode();
         if (node != null && node.isArray()) {
-            node.forEach(array::add);
+            node.forEach(item -> array.add(item.deepCopy()));
         }
         return array;
     }
