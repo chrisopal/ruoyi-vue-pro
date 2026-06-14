@@ -27,5 +27,7 @@ public interface ErrorCodeConstants {
     ErrorCode DOMAIN_PACK_PUBLISHED_IMMUTABLE = new ErrorCode(1_050_001_014, "检测方案包已发布或归档，不能原地修改");
     ErrorCode DOMAIN_PACK_VERSION_DUPLICATE = new ErrorCode(1_050_001_015, "检测方案包编码和版本已存在");
     ErrorCode DOMAIN_PACK_STATUS_INVALID = new ErrorCode(1_050_001_016, "检测方案包状态不允许当前操作");
+    ErrorCode EQUIPMENT_ASSET_NOT_EXISTS = new ErrorCode(1_050_001_017, "设备主档不存在");
+    ErrorCode EQUIPMENT_ASSET_CODE_DUPLICATE = new ErrorCode(1_050_001_018, "设备编码已存在");
 
 }
