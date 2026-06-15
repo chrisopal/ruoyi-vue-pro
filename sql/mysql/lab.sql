@@ -450,21 +450,21 @@ SET @lab_root_menu_id := (
 );
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
-SELECT '配置编制', '', 1, 10, @lab_root_menu_id, 'config', 'ep:files', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+SELECT '检测方向包配置', '', 1, 20, @lab_root_menu_id, 'config', 'ep:box', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `name` = '配置编制' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `path` = 'config' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
 );
 
 SET @lab_config_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `name` = '配置编制' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  WHERE `path` = 'config' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '实验室看板', 'lab:dashboard:query', 2, 5, @lab_config_menu_id, 'dashboard', 'ep:data-analysis', 'lab/dashboard/index', 'LabDashboard', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:dashboard:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:dashboard:query' AND `deleted` = b'0'
 );
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
@@ -518,12 +518,12 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:domain-p
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '标准体系', 'lab:standard:query', 2, 22, @lab_config_menu_id, 'standard', 'ep:collection', 'lab/standard/index', 'LabStandard', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard:query' AND `deleted` = b'0'
 );
 
 SET @lab_standard_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `permission` = 'lab:standard:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  WHERE `permission` = 'lab:standard:query' AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -546,12 +546,12 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '条款映射', 'lab:standard-clause:query', 2, 24, @lab_config_menu_id, 'standard-clause', 'ep:list', 'lab/standard-clause/index', 'LabStandardClause', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard-clause:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard-clause:query' AND `deleted` = b'0'
 );
 
 SET @lab_standard_clause_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `permission` = 'lab:standard-clause:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  WHERE `permission` = 'lab:standard-clause:query' AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -574,12 +574,12 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:standard
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '证据对象', 'lab:evidence-object:query', 2, 25, @lab_config_menu_id, 'evidence-object', 'ep:files', 'lab/evidence-object/index', 'LabEvidenceObject', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-object:query' AND `deleted` = b'0'
 );
 
 SET @lab_evidence_object_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `permission` = 'lab:evidence-object:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  WHERE `permission` = 'lab:evidence-object:query' AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -598,12 +598,12 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '证据关联', 'lab:evidence-link:query', 2, 26, @lab_config_menu_id, 'evidence-link', 'ep:connection', 'lab/evidence-link/index', 'LabEvidenceLink', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-link:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-link:query' AND `deleted` = b'0'
 );
 
 SET @lab_evidence_link_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `permission` = 'lab:evidence-link:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  WHERE `permission` = 'lab:evidence-link:query' AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -646,12 +646,12 @@ WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:template
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
 SELECT '评审材料包', 'lab:review-package:query', 2, 30, @lab_config_menu_id, 'review-package', 'ep:document-checked', 'lab/review-package/index', 'LabReviewPackage', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:review-package:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:review-package:query' AND `deleted` = b'0'
 );
 
 SET @lab_review_package_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `permission` = 'lab:review-package:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
+  WHERE `permission` = 'lab:review-package:query' AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -2101,14 +2101,14 @@ WHERE o.`evidence_code` = CONCAT('OBJ-EQUIPMENT-CAL-', e.`equipment_code`) AND o
   );
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
-SELECT '检测业务', '', 1, 20, @lab_root_menu_id, 'business', 'ep:operation', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+SELECT 'LIMS 执行闭环', '', 1, 10, @lab_root_menu_id, 'business', 'ep:operation', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
-  SELECT 1 FROM `system_menu` WHERE `name` = '检测业务' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  SELECT 1 FROM `system_menu` WHERE `path` = 'business' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
 );
 
 SET @lims_business_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `name` = '检测业务' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  WHERE `path` = 'business' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -2209,7 +2209,7 @@ SET @lab_root_menu_id := (
 
 SET @lab_config_menu_id := (
   SELECT `id` FROM `system_menu`
-  WHERE `name` = '配置编制' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  WHERE `path` = 'config' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
   ORDER BY `id` ASC LIMIT 1
 );
 
@@ -2348,6 +2348,200 @@ SET `parent_id` = @lab_quality_improvement_menu_id,
     `updater` = 'admin',
     `update_time` = NOW()
 WHERE `permission` IN ('lab:nonconformity:query', 'lab:corrective-action:query', 'lab:internal-audit:query', 'lab:management-review:query')
+  AND `deleted` = b'0';
+
+-- TIC 六层产品导航归一化：把前端一级菜单对齐产品架构，保留现有页面组件和权限。
+SET @lab_root_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `name` = '实验室平台' AND `path` = '/lab' AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+UPDATE `system_menu`
+SET `name` = 'LIMS 执行闭环',
+    `sort` = 10,
+    `icon` = 'ep:operation',
+    `visible` = b'1',
+    `always_show` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `path` = 'business'
+  AND `parent_id` = @lab_root_menu_id
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `name` = '检测方向包配置',
+    `sort` = 20,
+    `icon` = 'ep:box',
+    `visible` = b'1',
+    `always_show` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `path` = 'config'
+  AND `parent_id` = @lab_root_menu_id
+  AND `deleted` = b'0';
+
+SET @lims_business_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `path` = 'business' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+SET @lab_config_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `path` = 'config' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT 'CNAS/CMA 合规中心', '', 1, 30, @lab_root_menu_id, 'cnas-compliance', 'ep:medal', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `path` = 'cnas-compliance' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+);
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '证据链中心', '', 1, 40, @lab_root_menu_id, 'evidence-chain', 'ep:connection', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `path` = 'evidence-chain' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+);
+
+SET @tic_cnas_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `path` = 'cnas-compliance' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+SET @tic_evidence_menu_id := (
+  SELECT `id` FROM `system_menu`
+  WHERE `path` = 'evidence-chain' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
+  ORDER BY `id` ASC LIMIT 1
+);
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT 'AI 标准与解读中心', 'lims:ai-assist:query', 2, 50, @lab_root_menu_id, 'ai-assist', 'ep:magic-stick', 'lims/ai-assist/index', 'LimsAiAssist', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lims:ai-assist:query' AND `deleted` = b'0'
+);
+
+INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
+SELECT '评审与运营看板', 'lab:dashboard:query', 2, 60, @lab_root_menu_id, 'dashboard', 'ep:data-analysis', 'lab/dashboard/index', 'LabDashboard', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:dashboard:query' AND `deleted` = b'0'
+);
+
+UPDATE `system_menu`
+SET `parent_id` = @lims_business_menu_id,
+    `sort` = CASE `permission`
+      WHEN 'lims:request:query' THEN 10
+      WHEN 'lims:sample:query' THEN 20
+      WHEN 'lims:task:query' THEN 30
+      WHEN 'lims:result:query' THEN 40
+      WHEN 'lims:report:query' THEN 50
+      ELSE `sort`
+    END,
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` IN ('lims:request:query', 'lims:sample:query', 'lims:task:query', 'lims:result:query', 'lims:report:query')
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `parent_id` = @lab_config_menu_id,
+    `sort` = CASE `permission`
+      WHEN 'lab:domain:query' THEN 10
+      WHEN 'lab:domain-pack:query' THEN 20
+      WHEN 'lab:pack-designer:query' THEN 30
+      WHEN 'lab:template:query' THEN 40
+      ELSE `sort`
+    END,
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` IN ('lab:domain:query', 'lab:domain-pack:query', 'lab:pack-designer:query', 'lab:template:query')
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `parent_id` = @tic_cnas_menu_id,
+    `sort` = CASE `permission`
+      WHEN 'lab:standard:query' THEN 10
+      WHEN 'lab:standard-clause:query' THEN 20
+      WHEN 'lab:clause-mapping:query' THEN 30
+      WHEN 'lab:compliance-check:query' THEN 40
+      WHEN 'lab:compliance-check-item:query' THEN 50
+      WHEN 'lab:personnel-competence:query' THEN 60
+      WHEN 'lab:personnel-authorization:query' THEN 70
+      WHEN 'lab:equipment-asset:query' THEN 80
+      WHEN 'lab:equipment-traceability:query' THEN 90
+      WHEN 'lab:equipment-intermediate-check:query' THEN 100
+      WHEN 'lab:environment-record:query' THEN 110
+      WHEN 'lab:method-validation:query' THEN 120
+      WHEN 'lab:nonconformity:query' THEN 130
+      WHEN 'lab:corrective-action:query' THEN 140
+      WHEN 'lab:internal-audit:query' THEN 150
+      WHEN 'lab:management-review:query' THEN 160
+      ELSE `sort`
+    END,
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` IN (
+    'lab:standard:query', 'lab:standard-clause:query', 'lab:clause-mapping:query',
+    'lab:compliance-check:query', 'lab:compliance-check-item:query',
+    'lab:personnel-competence:query', 'lab:personnel-authorization:query',
+    'lab:equipment-asset:query', 'lab:equipment-traceability:query', 'lab:equipment-intermediate-check:query',
+    'lab:environment-record:query', 'lab:method-validation:query',
+    'lab:nonconformity:query', 'lab:corrective-action:query', 'lab:internal-audit:query', 'lab:management-review:query'
+  )
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `parent_id` = @tic_evidence_menu_id,
+    `sort` = CASE `permission`
+      WHEN 'lab:evidence-object:query' THEN 10
+      WHEN 'lab:evidence-link:query' THEN 20
+      WHEN 'lab:review-package:query' THEN 30
+      ELSE `sort`
+    END,
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` IN ('lab:evidence-object:query', 'lab:evidence-link:query', 'lab:review-package:query')
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `name` = 'AI 标准与解读中心',
+    `parent_id` = @lab_root_menu_id,
+    `path` = 'ai-assist',
+    `sort` = 50,
+    `icon` = 'ep:magic-stick',
+    `component` = 'lims/ai-assist/index',
+    `component_name` = 'LimsAiAssist',
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` = 'lims:ai-assist:query'
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `name` = '评审与运营看板',
+    `parent_id` = @lab_root_menu_id,
+    `path` = 'dashboard',
+    `sort` = 60,
+    `icon` = 'ep:data-analysis',
+    `component` = 'lab/dashboard/index',
+    `component_name` = 'LabDashboard',
+    `visible` = b'1',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `permission` = 'lab:dashboard:query'
+  AND `deleted` = b'0';
+
+UPDATE `system_menu`
+SET `visible` = b'0',
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `parent_id` = @lab_config_menu_id
+  AND `name` IN ('配置总览', '检测方向配置', '标准与模板', '评审与证据', '资源与环境', '质量改进')
   AND `deleted` = b'0';
 
 -- BPM 管理表：Flowable ACT_* 引擎表由模块启动自动维护，这里补齐芋道后台页面直接查询的自有表。
