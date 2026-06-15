@@ -18,4 +18,9 @@ public interface LimsTestResultValueMapper extends BaseMapperX<LimsTestResultVal
                 .orderByAsc(LimsTestResultValueDO::getId));
     }
 
+    default int deleteByResultId(Long resultId) {
+        return delete(new LambdaQueryWrapperX<LimsTestResultValueDO>()
+                .eq(LimsTestResultValueDO::getResultId, resultId));
+    }
+
 }

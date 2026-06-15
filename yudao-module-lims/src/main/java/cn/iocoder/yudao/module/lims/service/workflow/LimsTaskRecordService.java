@@ -56,6 +56,8 @@ public class LimsTaskRecordService {
     @Resource
     private LimsQualityGateService qualityGateService;
     @Resource
+    private LimsResultValueSyncService resultValueSyncService;
+    @Resource
     private ObjectMapper objectMapper;
 
     @Transactional(rollbackFor = Exception.class)
@@ -199,31 +201,32 @@ public class LimsTaskRecordService {
             qualityGateService.validateResultValues(validateRequest(task.getRequestId()), task, reqVO.getRawData());
         }
         List<LimsTestResultDO> results = resultMapper.selectListByTaskId(task.getId());
-        if (results.isEmpty()) {
-            LimsTestResultDO result = new LimsTestResultDO();
-            result.setRequestId(task.getRequestId());
-            result.setRequestNo(task.getRequestNo());
-            result.setSampleId(task.getSampleId());
-            result.setSampleNo(task.getSampleNo());
-            result.setTaskId(task.getId());
-            result.setTaskNo(task.getTaskNo());
-            result.setResultNo(task.getTaskNo() + "-R01");
-            result.setTestItem(task.getTestItem());
-            result.setResultValue(reqVO.getResultValue());
-            result.setResultUnit(reqVO.getResultUnit());
-            result.setResultConclusion(reqVO.getResultConclusion());
-            result.setRawData(reqVO.getRawData());
-            result.setStatus("recorded");
+        LimsTestResultDO result = results == null || results.isEmpty() ? new LimsTestResultDO() : results.get(0);
+        fillResultFromRawPayload(result, task, reqVO);
+        if (result.getId() == null) {
             resultMapper.insert(result);
-            return;
+        } else {
+            resultMapper.updateById(result);
         }
-        UpdateWrapper<LimsTestResultDO> update = new UpdateWrapper<LimsTestResultDO>().eq("task_id", task.getId());
-        update.set(StringUtils.hasText(reqVO.getResultValue()), "result_value", reqVO.getResultValue());
-        update.set(StringUtils.hasText(reqVO.getResultUnit()), "result_unit", reqVO.getResultUnit());
-        update.set(StringUtils.hasText(reqVO.getResultConclusion()), "result_conclusion", reqVO.getResultConclusion());
-        update.set(StringUtils.hasText(reqVO.getRawData()), "raw_data", reqVO.getRawData());
-        update.set("status", "recorded");
-        resultMapper.update(null, update);
+        resultValueSyncService.replaceValues(result, task);
+    }
+
+    private void fillResultFromRawPayload(LimsTestResultDO result, LimsTestTaskDO task, LimsWorkflowSaveReqVO reqVO) {
+        result.setRequestId(task.getRequestId());
+        result.setRequestNo(task.getRequestNo());
+        result.setSampleId(task.getSampleId());
+        result.setSampleNo(task.getSampleNo());
+        result.setTaskId(task.getId());
+        result.setTaskNo(task.getTaskNo());
+        if (!StringUtils.hasText(result.getResultNo())) {
+            result.setResultNo(task.getTaskNo() + "-R01");
+        }
+        result.setTestItem(task.getTestItem());
+        result.setResultValue(reqVO.getResultValue());
+        result.setResultUnit(reqVO.getResultUnit());
+        result.setResultConclusion(reqVO.getResultConclusion());
+        result.setRawData(reqVO.getRawData());
+        result.setStatus("recorded");
     }
 
     private void assertQualityGateSatisfied(LimsTestTaskDO task, LimsTaskReviewDO currentReview) {

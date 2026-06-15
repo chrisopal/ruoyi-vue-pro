@@ -25,7 +25,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +53,8 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
     private LimsTaskLifecycleService lifecycleService;
     @Mock
     private LimsQualityGateService qualityGateService;
+    @Mock
+    private LimsResultValueSyncService resultValueSyncService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -87,11 +92,16 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
         when(taskMapper.selectById(10L)).thenReturn(task);
         when(requestMapper.selectById(1L)).thenReturn(request());
         when(resultMapper.selectListByTaskId(10L)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            LimsTestResultDO result = invocation.getArgument(0);
+            result.setId(100L);
+            return 1;
+        }).when(resultMapper).insert(any(LimsTestResultDO.class));
         LimsWorkflowSaveReqVO req = rawReq();
         req.setResultValue("7.10");
         req.setResultUnit("pH");
         req.setResultConclusion("pass");
-        req.setRawData("{\"resultValues\":[{\"fieldCode\":\"PH\",\"fieldValue\":\"7.10\"}]}");
+        req.setRawData("{\"resultValues\":[{\"fieldCode\":\"PH\",\"fieldName\":\"酸碱度\",\"fieldValue\":\"7.10\"}]}");
 
         service.submitRawRecord(req);
 
@@ -111,6 +121,44 @@ class LimsTaskRecordServiceTest extends BaseMockitoUnitTest {
                         && "pass".equals(result.getResultConclusion())
                         && "recorded".equals(result.getStatus())
                         && result.getRawData().contains("resultValues")));
+        verify(resultValueSyncService).replaceValues(argThat((LimsTestResultDO result) ->
+                        Long.valueOf(100L).equals(result.getId())
+                                && Long.valueOf(10L).equals(result.getTaskId())
+                                && result.getRawData().contains("\"fieldName\":\"酸碱度\"")),
+                argThat((LimsTestTaskDO syncedTask) -> Long.valueOf(10L).equals(syncedTask.getId())));
+    }
+
+    @Test
+    void submitRawRecord_shouldUpdateExistingResultAndReplaceDynamicValues() {
+        LimsTestTaskDO task = task(10L, LimsTaskStatus.TESTING);
+        task.setRequestNo("REQ-001");
+        task.setSampleId(20L);
+        task.setSampleNo("S-001");
+        task.setTestItem("PH");
+        LimsTestResultDO existing = result();
+        existing.setId(100L);
+        existing.setResultValue("7.00");
+        when(taskMapper.selectById(10L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(request());
+        when(resultMapper.selectListByTaskId(10L)).thenReturn(List.of(existing));
+        LimsWorkflowSaveReqVO req = rawReq();
+        req.setResultValue("7.20");
+        req.setResultUnit("pH");
+        req.setResultConclusion("pass");
+        req.setRawData("{\"resultValues\":[{\"fieldCode\":\"PH\",\"fieldName\":\"酸碱度\",\"fieldValue\":\"7.20\"}]}");
+
+        service.submitRawRecord(req);
+
+        verify(resultMapper, never()).insert(any(LimsTestResultDO.class));
+        verify(resultMapper).updateById(argThat((LimsTestResultDO result) ->
+                Long.valueOf(100L).equals(result.getId())
+                        && "7.20".equals(result.getResultValue())
+                        && "pH".equals(result.getResultUnit())
+                        && result.getRawData().contains("\"fieldValue\":\"7.20\"")));
+        verify(resultValueSyncService).replaceValues(argThat((LimsTestResultDO result) ->
+                        Long.valueOf(100L).equals(result.getId())
+                                && "7.20".equals(result.getResultValue())),
+                argThat((LimsTestTaskDO syncedTask) -> Long.valueOf(10L).equals(syncedTask.getId())));
     }
 
     @Test

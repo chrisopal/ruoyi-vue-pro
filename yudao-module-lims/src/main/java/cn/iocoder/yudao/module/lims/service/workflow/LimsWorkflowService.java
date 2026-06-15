@@ -77,6 +77,8 @@ public class LimsWorkflowService {
     @Resource
     private LimsTestResultValueMapper resultValueMapper;
     @Resource
+    private LimsResultValueSyncService resultValueSyncService;
+    @Resource
     private LimsReportMapper reportMapper;
     @Resource
     private LimsExecutionPlanMapper executionPlanMapper;
@@ -400,23 +402,57 @@ public class LimsWorkflowService {
         LimsTestTaskDO task = validateTaskExists(createReqVO.getTaskId());
         LimsTestRequestDO request = validateRequestExists(task.getRequestId());
         qualityGateService.validateResultValues(request, task, createReqVO.getRawData());
-        LimsTestResultDO result = BeanUtils.toBean(createReqVO, LimsTestResultDO.class);
+        List<LimsTestResultDO> existingResults = resultMapper.selectListByTaskId(task.getId());
+        LimsTestResultDO result = existingResults == null || existingResults.isEmpty()
+                ? BeanUtils.toBean(createReqVO, LimsTestResultDO.class) : existingResults.get(0);
+        fillResultPayload(result, createReqVO);
         fillResultFromTask(result, task);
         if (!StringUtils.hasText(result.getStatus())) {
             result.setStatus("recorded");
         }
-        resultMapper.insert(result);
-        saveResultValues(result, task);
-        taskLifecycleService.transition(task.getId(), LimsTaskStatus.DATA_SUBMITTED,
-                LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
-        taskLifecycleService.transition(task.getId(), LimsTaskStatus.REVIEWING,
-                LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
+        if (result.getId() == null) {
+            resultMapper.insert(result);
+        } else {
+            resultMapper.updateById(result);
+        }
+        resultValueSyncService.replaceValues(result, task);
+        transitionResultEntryLifecycle(task);
         taskMapper.update(null, new UpdateWrapper<LimsTestTaskDO>()
                 .eq("id", task.getId())
                 .set("review_status", LimsTaskReviewStatus.PENDING)
                 .set("report_eligible", false));
         refreshRequestAfterResults(task.getRequestId());
         return result.getId();
+    }
+
+    private void fillResultPayload(LimsTestResultDO result, LimsWorkflowSaveReqVO reqVO) {
+        if (StringUtils.hasText(reqVO.getResultNo())) {
+            result.setResultNo(reqVO.getResultNo());
+        }
+        result.setResultValue(reqVO.getResultValue());
+        result.setResultUnit(reqVO.getResultUnit());
+        result.setResultConclusion(reqVO.getResultConclusion());
+        result.setRawData(reqVO.getRawData());
+        result.setReviewerId(reqVO.getReviewerId());
+        result.setReviewedTime(reqVO.getReviewedTime());
+        result.setStatus(reqVO.getStatus());
+        result.setRemark(reqVO.getRemark());
+    }
+
+    private void transitionResultEntryLifecycle(LimsTestTaskDO task) {
+        String status = StringUtils.hasText(task.getTaskStatus()) ? task.getTaskStatus() : task.getStatus();
+        if (LimsTaskStatus.DATA_SUBMITTED.equals(status)) {
+            taskLifecycleService.transition(task.getId(), LimsTaskStatus.REVIEWING,
+                    LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
+            return;
+        }
+        if (LimsTaskStatus.REVIEWING.equals(status)) {
+            return;
+        }
+        taskLifecycleService.transition(task.getId(), LimsTaskStatus.DATA_SUBMITTED,
+                LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
+        taskLifecycleService.transition(task.getId(), LimsTaskStatus.REVIEWING,
+                LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
     }
 
     public void updateResult(LimsWorkflowSaveReqVO updateReqVO) {
@@ -717,7 +753,7 @@ public class LimsWorkflowService {
         result.setTaskNo(task.getTaskNo());
         result.setTestItem(task.getTestItem());
         if (!StringUtils.hasText(result.getResultNo())) {
-            result.setResultNo(task.getTaskNo() + "-R");
+            result.setResultNo(task.getTaskNo() + "-R01");
         }
     }
 
@@ -819,42 +855,6 @@ public class LimsWorkflowService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Unable to serialize LIMS snapshot", ex);
-        }
-    }
-
-    private void saveResultValues(LimsTestResultDO result, LimsTestTaskDO task) {
-        JsonNode values = readObject(result.getRawData()).path("resultValues");
-        if (!values.isArray()) {
-            return;
-        }
-        for (int i = 0; i < values.size(); i++) {
-            JsonNode value = values.get(i);
-            String fieldCode = value.path("fieldCode").asText("");
-            String fieldName = value.path("fieldName").asText("");
-            if (!StringUtils.hasText(fieldCode) || !StringUtils.hasText(fieldName)) {
-                continue;
-            }
-            String fieldValue = value.path("fieldValue").asText(value.path("value").asText(""));
-            String unit = value.path("unit").asText("");
-            LimsTestResultValueDO resultValue = new LimsTestResultValueDO();
-            resultValue.setResultId(result.getId());
-            resultValue.setRequestId(result.getRequestId());
-            resultValue.setRequestNo(result.getRequestNo());
-            resultValue.setSampleId(result.getSampleId());
-            resultValue.setSampleNo(result.getSampleNo());
-            resultValue.setTaskId(task.getId());
-            resultValue.setTaskNo(task.getTaskNo());
-            resultValue.setTestItem(task.getTestItem());
-            resultValue.setFieldCode(fieldCode);
-            resultValue.setFieldName(fieldName);
-            resultValue.setFieldType(value.path("fieldType").asText(""));
-            resultValue.setFieldValue(fieldValue);
-            resultValue.setDisplayValue(value.path("displayValue").asText(fieldValue + unit));
-            resultValue.setUnit(unit);
-            resultValue.setConclusion(value.path("conclusion").asText(result.getResultConclusion()));
-            resultValue.setSort(i + 1);
-            resultValue.setStatus("recorded");
-            resultValueMapper.insert(resultValue);
         }
     }
 

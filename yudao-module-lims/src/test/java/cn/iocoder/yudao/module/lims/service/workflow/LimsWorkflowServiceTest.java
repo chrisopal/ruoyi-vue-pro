@@ -50,6 +50,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,6 +96,8 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
     private LimsTaskRecordService taskRecordService;
     @Mock
     private LimsQualityGateService qualityGateService;
+    @Mock
+    private LimsResultValueSyncService resultValueSyncService;
     @Mock
     private ExecutionPlanResolver executionPlanResolver;
     @Spy
@@ -554,6 +557,12 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
         when(taskMapper.selectById(20L)).thenReturn(task);
         when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
         when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(task));
+        when(resultMapper.selectListByTaskId(20L)).thenReturn(List.of());
+        doAnswer(invocation -> {
+            LimsTestResultDO result = invocation.getArgument(0);
+            result.setId(100L);
+            return 1;
+        }).when(resultMapper).insert(any(LimsTestResultDO.class));
 
         workflowService.createResult(resultReq());
 
@@ -569,6 +578,47 @@ class LimsWorkflowServiceTest extends BaseMockitoUnitTest {
                 LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
         verify(taskLifecycleService).transition(20L, LimsTaskStatus.REVIEWING,
                 LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
+        verify(resultValueSyncService).replaceValues(argThat((LimsTestResultDO result) ->
+                        Long.valueOf(100L).equals(result.getId())
+                                && Long.valueOf(20L).equals(result.getTaskId())),
+                argThat((LimsTestTaskDO syncedTask) -> Long.valueOf(20L).equals(syncedTask.getId())));
+    }
+
+    @Test
+    void createResult_shouldUpdateExistingRawRecordResultAndContinueReviewLifecycle() {
+        LimsTestTaskDO task = taskWithEquipmentEvidence();
+        task.setTaskStatus(LimsTaskStatus.DATA_SUBMITTED);
+        task.setStatus(LimsTaskStatus.DATA_SUBMITTED);
+        LimsTestResultDO existing = result();
+        existing.setId(100L);
+        existing.setResultNo("REQ-2026-001-T01-R01");
+        existing.setResultValue("7.0");
+        when(taskMapper.selectById(20L)).thenReturn(task);
+        when(requestMapper.selectById(1L)).thenReturn(requestWithWorkflowSnapshot(snapshotWithAllSections()));
+        when(taskMapper.selectListByRequestId(1L)).thenReturn(List.of(task));
+        when(resultMapper.selectListByTaskId(20L)).thenReturn(List.of(existing));
+        LimsWorkflowSaveReqVO reqVO = resultReq();
+        reqVO.setResultValue("7.2");
+        reqVO.setRawData("{\"resultValues\":[{\"fieldCode\":\"PH\",\"fieldName\":\"pH\",\"fieldValue\":\"7.2\"}]}");
+
+        Long resultId = workflowService.createResult(reqVO);
+
+        assertEquals(100L, resultId);
+        verify(resultMapper, never()).insert(any(LimsTestResultDO.class));
+        verify(resultMapper).updateById(argThat((LimsTestResultDO result) ->
+                Long.valueOf(100L).equals(result.getId())
+                        && Long.valueOf(20L).equals(result.getTaskId())
+                        && "REQ-2026-001-T01-R01".equals(result.getResultNo())
+                        && "7.2".equals(result.getResultValue())
+                        && result.getRawData().contains("\"fieldValue\":\"7.2\"")));
+        verify(taskLifecycleService, never()).transition(20L, LimsTaskStatus.DATA_SUBMITTED,
+                LimsTaskEventType.RECORD_SUBMITTED, "检测结果已录入", null);
+        verify(taskLifecycleService).transition(20L, LimsTaskStatus.REVIEWING,
+                LimsTaskEventType.REVIEW_SUBMITTED, "检测结果待复核", null);
+        verify(resultValueSyncService).replaceValues(argThat((LimsTestResultDO result) ->
+                        Long.valueOf(100L).equals(result.getId())
+                                && "7.2".equals(result.getResultValue())),
+                argThat((LimsTestTaskDO syncedTask) -> Long.valueOf(20L).equals(syncedTask.getId())));
     }
 
     @Test
