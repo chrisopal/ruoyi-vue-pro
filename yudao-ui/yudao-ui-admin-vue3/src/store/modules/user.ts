@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { getAccessToken, removeToken } from '@/utils/auth'
 import { CACHE_KEY, useCache, deleteUserCache } from '@/hooks/web/useCache'
 import { getInfo, loginOut } from '@/api/login'
+import { sanitizeMenuRouters } from '@/utils/menuSanitizer'
 
 const { wsCache } = useCache()
 
@@ -62,6 +63,7 @@ export const useUserStore = defineStore('admin-user', {
           userInfo = await getInfo()
         } catch (error) {}
       }
+      userInfo.menus = sanitizeMenuRouters(userInfo.menus || [])
       this.permissions = new Set(userInfo.permissions || []) // 兜底为 [] https://t.zsxq.com/xCJew
       this.roles = userInfo.roles
       this.user = userInfo.user

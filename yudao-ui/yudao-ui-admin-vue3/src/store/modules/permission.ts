@@ -4,6 +4,7 @@ import { cloneDeep } from 'lodash-es'
 import remainingRouter from '@/router/modules/remaining'
 import { flatMultiLevelRoutes, generateRoute } from '@/utils/routerHelper'
 import { CACHE_KEY, useCache } from '@/hooks/web/useCache'
+import { sanitizeMenuRouters } from '@/utils/menuSanitizer'
 
 const { wsCache } = useCache()
 
@@ -42,7 +43,8 @@ export const usePermissionStore = defineStore('permission', {
         let res: AppCustomRouteRecordRaw[] = []
         const roleRouters = wsCache.get(CACHE_KEY.ROLE_ROUTERS)
         if (roleRouters) {
-          res = roleRouters as AppCustomRouteRecordRaw[]
+          res = sanitizeMenuRouters(roleRouters as AppCustomRouteRecordRaw[])
+          wsCache.set(CACHE_KEY.ROLE_ROUTERS, res)
         }
         const routerMap: AppRouteRecordRaw[] = generateRoute(res)
         // 动态路由，404一定要放到最后面
