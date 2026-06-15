@@ -2101,7 +2101,7 @@ WHERE o.`evidence_code` = CONCAT('OBJ-EQUIPMENT-CAL-', e.`equipment_code`) AND o
   );
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
-SELECT 'LIMS 执行闭环', '', 1, 10, @lab_root_menu_id, 'business', 'ep:operation', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+SELECT '检测业务', '', 1, 10, @lab_root_menu_id, 'business', 'ep:operation', NULL, NULL, 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
   SELECT 1 FROM `system_menu` WHERE `path` = 'business' AND `parent_id` = @lab_root_menu_id AND `deleted` = b'0'
 );
@@ -2358,7 +2358,7 @@ SET @lab_root_menu_id := (
 );
 
 UPDATE `system_menu`
-SET `name` = 'LIMS 执行闭环',
+SET `name` = '检测业务',
     `sort` = 10,
     `icon` = 'ep:operation',
     `visible` = b'1',
