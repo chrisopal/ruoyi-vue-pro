@@ -1,11 +1,11 @@
 <template>
   <ContentWrap>
-    <div class="mb-16px flex items-center justify-between">
-      <div>
-        <div class="text-16px font-600">{{ title }}</div>
-        <div v-if="subtitle" class="mt-4px text-12px color-#909399">{{ subtitle }}</div>
+    <div class="lims-page-header">
+      <div class="lims-page-heading">
+        <div class="lims-page-title">{{ title }}</div>
+        <div v-if="subtitle" class="lims-page-subtitle">{{ subtitle }}</div>
       </div>
-      <el-button @click="getList"><Icon class="mr-5px" icon="ep:refresh" />刷新</el-button>
+      <el-button plain type="primary" @click="getList"><Icon class="mr-5px" icon="ep:refresh" />刷新</el-button>
     </div>
     <el-form ref="queryFormRef" :inline="true" :model="queryParams" class="-mb-15px" label-width="88px">
       <el-form-item label="关键字" prop="keyword">
@@ -62,20 +62,22 @@
       <el-table-column align="center" label="状态" min-width="110" prop="status">
         <template #default="scope"><el-tag>{{ scope.row.status || '-' }}</el-tag></template>
       </el-table-column>
-      <el-table-column align="center" fixed="right" label="操作" min-width="420">
+      <el-table-column align="center" fixed="right" label="操作" width="360">
         <template #default="scope">
-          <el-button
-            v-for="action in rowActions"
-            :key="action.label"
-            v-hasPermi="permissionOfAction(action)"
-            link
-            type="primary"
-            @click="runAction(action, scope.row)"
-          >
-            {{ action.label }}
-          </el-button>
-          <el-button v-hasPermi="permissionOf('update')" link type="primary" @click="openForm('update', scope.row.id)">编辑</el-button>
-          <el-button v-hasPermi="permissionOf('delete')" link type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
+          <div class="workflow-row-actions">
+            <el-button
+              v-for="action in rowActions"
+              :key="action.label"
+              v-hasPermi="permissionOfAction(action)"
+              link
+              type="primary"
+              @click="runAction(action, scope.row)"
+            >
+              {{ action.label }}
+            </el-button>
+            <el-button v-hasPermi="permissionOf('update')" link type="primary" @click="openForm('update', scope.row.id)">编辑</el-button>
+            <el-button v-hasPermi="permissionOf('delete')" link type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -473,6 +475,39 @@ onMounted(() => getList())
 </script>
 
 <style scoped>
+.lims-page-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.lims-page-heading {
+  min-width: 0;
+}
+
+.lims-page-title {
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.lims-page-subtitle {
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.workflow-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  justify-content: center;
+}
+
 .snapshot-hash {
   display: inline-block;
   max-width: 260px;
@@ -495,5 +530,12 @@ onMounted(() => getList())
 
 :global(.lims-execution-plan-drawer .el-drawer.rtl) {
   right: 0 !important;
+}
+
+@media (max-width: 640px) {
+  .lims-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>
