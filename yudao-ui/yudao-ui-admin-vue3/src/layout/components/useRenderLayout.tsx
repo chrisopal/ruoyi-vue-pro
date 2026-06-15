@@ -45,6 +45,48 @@ const fixedMenu = computed(() => appStore.getFixedMenu)
 
 const layout = computed(() => appStore.getLayout)
 
+const startMenuResize = (event: MouseEvent) => {
+  if (appStore.getMobile || appStore.getCollapse) {
+    return
+  }
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = appStore.getMenuWidth
+  const originalCursor = document.body.style.cursor
+  const originalUserSelect = document.body.style.userSelect
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+
+  const move = (moveEvent: MouseEvent) => {
+    appStore.setMenuWidth(startWidth + moveEvent.clientX - startX)
+  }
+  const stop = () => {
+    document.removeEventListener('mousemove', move)
+    document.removeEventListener('mouseup', stop)
+    document.body.style.cursor = originalCursor
+    document.body.style.userSelect = originalUserSelect
+  }
+
+  document.addEventListener('mousemove', move)
+  document.addEventListener('mouseup', stop)
+}
+
+const renderMenuResizeHandle = () => {
+  if (mobile.value || collapse.value) {
+    return undefined
+  }
+  return (
+    <div
+      class="group absolute right-[-4px] top-0 z-20 h-full w-8px cursor-col-resize"
+      title="拖拽调整菜单宽度"
+      onMousedown={startMenuResize}
+    >
+      <div class="mx-auto h-full w-2px bg-transparent transition-colors group-hover:bg-[var(--el-color-primary)]"></div>
+    </div>
+  )
+}
+
 export const useRenderLayout = () => {
   const renderClassic = () => {
     return (
@@ -69,6 +111,7 @@ export const useRenderLayout = () => {
             ></Logo>
           ) : undefined}
           <Menu class={[{ '!h-[calc(100%-var(--logo-height))]': logo.value }]}></Menu>
+          {renderMenuResizeHandle()}
         </div>
         <div
           class={[
@@ -147,11 +190,14 @@ export const useRenderLayout = () => {
           <ToolHeader class={showHeaderMenu ? 'flex-none' : 'flex-1'}></ToolHeader>
         </div>
         <div class="absolute left-0 top-[var(--logo-height)] h-[calc(100%-var(--logo-height))] w-full flex">
-          <Menu
-            split={showHeaderMenu}
-            mode="vertical"
-            class="relative layout-border__right !h-full"
-          ></Menu>
+          <div class="relative h-full flex-none">
+            <Menu
+              split={showHeaderMenu}
+              mode="vertical"
+              class="relative layout-border__right !h-full"
+            ></Menu>
+            {renderMenuResizeHandle()}
+          </div>
           <div
             class={[
               `${prefixCls}-content`,

@@ -16,6 +16,7 @@ export const CACHE_KEY = {
   LANG: 'lang',
   THEME: 'theme',
   LAYOUT: 'layout',
+  MENU_WIDTH: 'menuWidth',
   DICT_CACHE: 'dictCache',
   // 登录表单
   LoginForm: 'loginForm',

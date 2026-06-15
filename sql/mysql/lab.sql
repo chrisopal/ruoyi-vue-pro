@@ -624,7 +624,7 @@ SELECT '证据关联导出', 'lab:evidence-link:export', 3, 4, @lab_evidence_lin
 WHERE NOT EXISTS (SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:evidence-link:export' AND `deleted` = b'0');
 
 INSERT INTO `system_menu` (`name`, `permission`, `type`, `sort`, `parent_id`, `path`, `icon`, `component`, `component_name`, `status`, `visible`, `keep_alive`, `always_show`, `creator`, `create_time`, `updater`, `update_time`, `deleted`)
-SELECT '模板编制', 'lab:template:query', 2, 28, @lab_config_menu_id, 'template', 'ep:tickets', 'lab/template/index', 'LabTemplate', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
+SELECT '报告模板设计器', 'lab:template:query', 2, 28, @lab_config_menu_id, 'template', 'ep:tickets', 'lab/template/index', 'LabTemplate', 0, b'1', b'1', b'1', 'admin', NOW(), '', NOW(), b'0'
 WHERE NOT EXISTS (
   SELECT 1 FROM `system_menu` WHERE `permission` = 'lab:template:query' AND `parent_id` = @lab_config_menu_id AND `deleted` = b'0'
 );
@@ -2357,6 +2357,32 @@ SET @lab_root_menu_id := (
   ORDER BY `id` ASC LIMIT 1
 );
 
+-- 历史纠偏：曾经用非 UTF-8 MySQL 客户端导入会产生乱码的 /lab 根菜单。
+-- 保留正确的“实验室平台”根节点；后续按 permission 归位真实页面，乱码分组只做软删除。
+UPDATE `system_menu` child
+JOIN `system_menu` bad_root
+  ON child.`parent_id` = bad_root.`id`
+SET child.`deleted` = b'1',
+    child.`visible` = b'0',
+    child.`status` = 1,
+    child.`updater` = 'admin',
+    child.`update_time` = NOW()
+WHERE bad_root.`path` = '/lab'
+  AND bad_root.`name` <> '实验室平台'
+  AND bad_root.`deleted` = b'0'
+  AND child.`permission` = ''
+  AND child.`deleted` = b'0';
+
+UPDATE `system_menu`
+SET `deleted` = b'1',
+    `visible` = b'0',
+    `status` = 1,
+    `updater` = 'admin',
+    `update_time` = NOW()
+WHERE `path` = '/lab'
+  AND `name` <> '实验室平台'
+  AND `deleted` = b'0';
+
 UPDATE `system_menu`
 SET `name` = '检测业务',
     `sort` = 10,
@@ -2447,6 +2473,10 @@ WHERE `permission` IN ('lims:request:query', 'lims:sample:query', 'lims:task:que
 
 UPDATE `system_menu`
 SET `parent_id` = @lab_config_menu_id,
+    `name` = CASE `permission`
+      WHEN 'lab:template:query' THEN '报告模板设计器'
+      ELSE `name`
+    END,
     `sort` = CASE `permission`
       WHEN 'lab:domain:query' THEN 10
       WHEN 'lab:domain-pack:query' THEN 20
@@ -2535,6 +2565,38 @@ SET `name` = '评审与运营看板',
     `update_time` = NOW()
 WHERE `permission` = 'lab:dashboard:query'
   AND `deleted` = b'0';
+
+-- 历史纠偏：同一 LAB/LIMS 权限因重复导入产生多个菜单时，只保留最早的规范记录。
+UPDATE `system_menu` m
+JOIN (
+  SELECT `permission`, MIN(`id`) AS keep_id
+  FROM `system_menu`
+  WHERE `deleted` = b'0'
+    AND `permission` <> ''
+    AND (`permission` LIKE 'lab:%' OR `permission` LIKE 'lims:%')
+  GROUP BY `permission`
+  HAVING COUNT(*) > 1
+) duplicate_menu
+  ON duplicate_menu.`permission` = m.`permission`
+SET m.`deleted` = b'1',
+    m.`visible` = b'0',
+    m.`status` = 1,
+    m.`updater` = 'admin',
+    m.`update_time` = NOW()
+WHERE m.`id` <> duplicate_menu.keep_id
+  AND m.`deleted` = b'0';
+
+UPDATE `system_menu` child
+JOIN `system_menu` parent
+  ON child.`parent_id` = parent.`id`
+SET child.`deleted` = b'1',
+    child.`visible` = b'0',
+    child.`status` = 1,
+    child.`updater` = 'admin',
+    child.`update_time` = NOW()
+WHERE parent.`deleted` = b'1'
+  AND child.`deleted` = b'0'
+  AND child.`name` REGEXP 'å|æ|è|é|Â|Ã';
 
 UPDATE `system_menu`
 SET `visible` = b'0',

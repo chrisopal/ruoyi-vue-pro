@@ -39,6 +39,7 @@ interface AppState {
   footer: boolean
   theme: ThemeTypes
   fixedMenu: boolean
+  menuWidth: number
 }
 
 export const useAppStore = defineStore('app', {
@@ -68,6 +69,7 @@ export const useAppStore = defineStore('app', {
       footer: true, // 显示页脚
       greyMode: false, // 是否开始灰色模式，用于特殊悼念日
       fixedMenu: wsCache.get('fixedMenu') || false, // 是否固定菜单
+      menuWidth: Number(wsCache.get(CACHE_KEY.MENU_WIDTH)) || 260, // 左侧菜单展开宽度
 
       layout: normalizeLayout(wsCache.get(CACHE_KEY.LAYOUT)), // layout布局
       isDark: wsCache.get(CACHE_KEY.IS_DARK) || false, // 是否是暗黑模式
@@ -182,6 +184,9 @@ export const useAppStore = defineStore('app', {
     },
     getFooter(): boolean {
       return this.footer
+    },
+    getMenuWidth(): number {
+      return this.menuWidth
     }
   },
   actions: {
@@ -268,6 +273,12 @@ export const useAppStore = defineStore('app', {
       wsCache.set('fixedMenu', fixedMenu)
       this.fixedMenu = fixedMenu
     },
+    setMenuWidth(menuWidth: number) {
+      const nextWidth = Math.min(420, Math.max(200, Math.round(menuWidth)))
+      this.menuWidth = nextWidth
+      setCssVar('--left-menu-max-width', `${nextWidth}px`)
+      wsCache.set(CACHE_KEY.MENU_WIDTH, nextWidth)
+    },
     setPageLoading(pageLoading: boolean) {
       this.pageLoading = pageLoading
     },
@@ -310,6 +321,7 @@ export const useAppStore = defineStore('app', {
       for (const key in this.theme) {
         setCssVar(`--${humpToUnderline(key)}`, this.theme[key])
       }
+      this.setMenuWidth(this.menuWidth)
       this.setPrimaryLight()
     },
     setFooter(footer: boolean) {
