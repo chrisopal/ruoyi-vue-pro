@@ -1,13 +1,21 @@
 <template>
   <ContentWrap>
-    <div class="mb-16px flex items-center justify-between">
-      <div>
-        <div class="text-18px font-600">检测方向包设计器</div>
-        <div class="mt-4px text-12px color-#909399">
+    <div class="designer-hero">
+      <div class="designer-heading">
+        <div class="designer-kicker">Domain Pack Designer</div>
+        <div class="designer-title">检测方向包设计器</div>
+        <div class="designer-subtitle">
           面向食品、工业品、药品、3C、新能源、环境等方向，统一配置流程、项目、结果字段和报告章节
         </div>
+        <div class="designer-meta">
+          <el-tag :type="isDesignerReadonly ? 'warning' : 'success'" effect="light">
+            {{ getPackStatusLabel(activePack?.status) }}
+          </el-tag>
+          <el-tag effect="plain">{{ packForm.packCode }}</el-tag>
+          <el-tag effect="plain" type="info">v{{ packForm.packVersion }}</el-tag>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-8px">
+      <div class="designer-actions">
         <el-select
           v-model="selectedTemplateKey"
           class="template-select"
@@ -51,34 +59,42 @@
 
     <el-row :gutter="16">
       <el-col :md="6" :xs="24">
-        <div class="metric">
+        <div class="designer-stat">
           <span>检测方向</span>
           <strong>{{ packForm.industry }}</strong>
           <small>{{ packForm.packCode }} · {{ getPackStatusLabel(activePack?.status) }}</small>
         </div>
       </el-col>
       <el-col :md="6" :xs="24">
-        <div class="metric">
+        <div class="designer-stat">
           <span>流程节点</span>
           <strong>{{ workflowNodes.length }}</strong>
           <small>受理到签发</small>
         </div>
       </el-col>
       <el-col :md="6" :xs="24">
-        <div class="metric">
+        <div class="designer-stat">
           <span>检测项目</span>
           <strong>{{ testItems.length }}</strong>
           <small>按样品生成任务</small>
         </div>
       </el-col>
       <el-col :md="6" :xs="24">
-        <div class="metric">
+        <div class="designer-stat">
           <span>结果字段</span>
           <strong>{{ resultFields.length }}</strong>
           <small>动态录入实例</small>
         </div>
       </el-col>
     </el-row>
+
+    <div class="designer-map">
+      <div v-for="node in designerMap" :key="node.label" class="designer-map-node">
+        <Icon :icon="node.icon" />
+        <span>{{ node.label }}</span>
+        <strong>{{ node.value }}</strong>
+      </div>
+    </div>
   </ContentWrap>
 
   <ContentWrap>
@@ -485,14 +501,14 @@
   </ContentWrap>
 
   <ContentWrap>
-    <div class="mb-16px flex items-center justify-between">
+    <div class="designer-workbench-header">
       <div>
-        <div class="text-16px font-600">检测方向执行工作台</div>
-        <div class="mt-4px text-12px color-#909399">
+        <div class="workbench-title">检测方向执行工作台</div>
+        <div class="workbench-subtitle">
           使用当前方向包配置，创建真实检测需求并完成任务、结果和报告签发
         </div>
       </div>
-      <div class="flex flex-wrap gap-8px">
+      <div class="workbench-actions">
         <el-button type="primary" @click="createTestRequest">创建检测需求</el-button>
         <el-button @click="generateTasks">生成任务</el-button>
         <el-button @click="recordResults">录入动态结果</el-button>
@@ -952,6 +968,16 @@ const designerLifecycleDescription = computed(() => {
   if (activePack.value.status === 'archived') return '归档版本不能用于新的检测需求，但历史执行计划、报告和证据链仍按该版本追溯。'
   return '旧状态仅用于历史数据兼容，建议复制为新的草稿版本后再维护。'
 })
+
+const designerMap = computed(() => [
+  { label: '流程', value: workflowNodes.value.length, icon: 'ep:guide' },
+  { label: '项目', value: testItems.value.length, icon: 'ep:list' },
+  { label: '结果字段', value: resultFields.value.length, icon: 'ep:edit-pen' },
+  { label: '样品要求', value: sampleRequirements.value.length, icon: 'ep:box' },
+  { label: '质控规则', value: qcRules.value.length, icon: 'ep:circle-check' },
+  { label: '证据要求', value: evidenceRequirements.value.length, icon: 'ep:link' },
+  { label: '报告章节', value: reportSections.value.length, icon: 'ep:document' }
+])
 
 const reportDraftPlanPreview = computed(() => ({
   templateVersion: packForm.packVersion,
@@ -1473,27 +1499,112 @@ onMounted(() => {
   width: 180px;
 }
 
-.metric {
+.designer-hero,
+.designer-workbench-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.designer-heading {
+  min-width: 0;
+}
+
+.designer-kicker {
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.designer-title,
+.workbench-title {
+  margin-top: 4px;
+  color: var(--el-text-color-primary);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.designer-subtitle,
+.workbench-subtitle {
+  max-width: 760px;
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.designer-meta,
+.designer-actions,
+.workbench-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.designer-meta {
+  margin-top: 12px;
+}
+
+.designer-actions {
+  justify-content: flex-end;
+  max-width: 620px;
+}
+
+.designer-stat {
   min-height: 86px;
+  padding: 14px 16px;
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
-  padding: 14px 16px;
   background: var(--el-bg-color);
 }
 
-.metric span,
-.metric small {
+.designer-stat span,
+.designer-stat small {
   display: block;
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
 
-.metric strong {
+.designer-stat strong {
   display: block;
   margin: 8px 0 4px;
   color: var(--el-text-color-primary);
   font-size: 22px;
   line-height: 1.2;
+}
+
+.designer-map {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.designer-map-node {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px;
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-bg-color);
+}
+
+.designer-map-node strong {
+  margin-left: auto;
+  color: var(--el-text-color-primary);
+  font-size: 18px;
 }
 
 .sub-title {
@@ -1534,5 +1645,32 @@ onMounted(() => {
 .designer-tabs--readonly :deep(.el-select__wrapper),
 .designer-tabs--readonly :deep(.el-textarea__inner) {
   background: var(--el-fill-color-lighter);
+}
+
+@media (max-width: 1200px) {
+  .designer-map {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .designer-hero,
+  .designer-workbench-header {
+    flex-direction: column;
+  }
+
+  .designer-actions {
+    justify-content: flex-start;
+  }
+
+  .designer-map {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .designer-map {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
