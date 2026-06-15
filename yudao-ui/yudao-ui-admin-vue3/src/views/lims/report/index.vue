@@ -12,6 +12,24 @@
       </el-button>
     </div>
 
+    <div class="report-chain-bridge">
+      <div>
+        <span>报告链路位置</span>
+        <strong>这里查看检测需求生成后的报告实例；模板和章节规则在检测方向包配置中维护。</strong>
+        <small>检测报告会固定引用已发布模板版本，结合检测结果、证据链和输出格式生成最终交付件。</small>
+      </div>
+      <div class="report-chain-steps">
+        <span>模板版本</span>
+        <Icon icon="ep:right" />
+        <span>报告实例</span>
+        <Icon icon="ep:right" />
+        <span>签发输出</span>
+      </div>
+      <el-button plain type="primary" @click="goToTemplateDesigner">
+        <Icon class="mr-5px" icon="ep:tickets" />维护报告模板
+      </el-button>
+    </div>
+
     <div class="report-overview-grid">
       <div class="report-overview-card">
         <span>报告总数</span>
@@ -180,6 +198,7 @@ defineOptions({ name: 'LimsReport' })
 const overviewLoading = ref(false)
 const reportRows = ref<LimsWorkflowVO[]>([])
 const activePreviewFormat = ref('PDF')
+const router = useRouter()
 
 const lifecycleSteps = [
   { label: '结果汇总', icon: 'ep:document-copy' },
@@ -204,6 +223,7 @@ const fields = [
 const rowActions = [
   { label: '签发', url: '/lims/report/issue', method: 'put', permission: 'lims:report:update' }
 ] as const
+const goToTemplateDesigner = () => router.push('/lab/config/template')
 
 const parseReportOutputs = (value?: string) => {
   if (!value) return []
@@ -353,6 +373,50 @@ onMounted(() => loadReportOverview())
   color: var(--el-text-color-secondary);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.report-chain-bridge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.report-chain-bridge span,
+.report-chain-bridge small {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.report-chain-bridge strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.report-chain-steps {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.report-chain-steps span {
+  padding: 5px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-bg-color);
 }
 
 .report-overview-grid {
@@ -697,6 +761,7 @@ onMounted(() => loadReportOverview())
 
 @media (max-width: 1200px) {
   .report-overview-grid,
+  .report-chain-bridge,
   .report-preview-workspace,
   .report-operation-strip,
   .report-lifecycle {
@@ -710,10 +775,15 @@ onMounted(() => loadReportOverview())
   }
 
   .report-overview-grid,
+  .report-chain-bridge,
   .report-preview-workspace,
   .report-operation-strip,
   .report-lifecycle {
     grid-template-columns: 1fr;
+  }
+
+  .report-chain-steps {
+    flex-wrap: wrap;
   }
 
   .report-paper-shell {

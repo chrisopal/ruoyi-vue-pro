@@ -18,6 +18,24 @@
       </el-button>
     </div>
 
+    <div class="report-chain-bridge">
+      <div>
+        <span>报告链路位置</span>
+        <strong>这里维护报告模板版本；最终报告效果在检测业务的报告实例中预览。</strong>
+        <small>模板随检测方向包发布冻结，检测需求执行后会引用模板版本生成 Word / PDF / Excel 报告。</small>
+      </div>
+      <div class="report-chain-steps">
+        <span>模板配置</span>
+        <Icon icon="ep:right" />
+        <span>检测需求</span>
+        <Icon icon="ep:right" />
+        <span>报告预览</span>
+      </div>
+      <el-button plain type="primary" @click="goToReportCenter">
+        <Icon class="mr-5px" icon="ep:document" />查看检测报告
+      </el-button>
+    </div>
+
     <div class="template-overview-grid">
       <div class="template-overview-card">
         <span>模板版本</span>
@@ -343,6 +361,7 @@ defineOptions({ name: 'LabTemplate' })
 
 const message = useMessage()
 const { t } = useI18n()
+const router = useRouter()
 const loading = ref(true)
 const templateList = ref<LabTemplateVersionVO[]>([])
 const total = ref(0)
@@ -383,6 +402,7 @@ const outputFormatOptions = [
   { label: 'PDF (.pdf)', value: 'PDF' },
   { label: 'Excel (.xlsx)', value: 'EXCEL' }
 ]
+const goToReportCenter = () => router.push('/lab/business/report')
 
 const getTemplateStatusLabel = (status?: string) => {
   return templateStatusOptions.find((item) => item.value === status)?.label || status || '草稿'
@@ -758,6 +778,50 @@ onMounted(() => getTemplateList())
   line-height: 1.5;
 }
 
+.report-chain-bridge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.report-chain-bridge span,
+.report-chain-bridge small {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.report-chain-bridge strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.report-chain-steps {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+
+.report-chain-steps span {
+  padding: 5px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-bg-color);
+}
+
 .template-tags,
 .format-chip-list,
 .workbench-actions {
@@ -969,7 +1033,8 @@ onMounted(() => getTemplateList())
 }
 
 @media (max-width: 1200px) {
-  .template-overview-grid {
+  .template-overview-grid,
+  .report-chain-bridge {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -983,8 +1048,13 @@ onMounted(() => getTemplateList())
   }
 
   .template-overview-grid,
+  .report-chain-bridge,
   .source-row {
     grid-template-columns: 1fr;
+  }
+
+  .report-chain-steps {
+    flex-wrap: wrap;
   }
 }
 </style>
